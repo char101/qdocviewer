@@ -8,6 +8,8 @@ from path import Path
 
 from . import qt
 
+sys.path.append(Path(__file__).parent / r'rapidfuzz\_skbuild\win-amd64-3.12\cmake-install\src')
+
 if sys.platform == 'win32':
     colorama.just_fix_windows_console()
 
