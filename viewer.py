@@ -72,12 +72,6 @@ class WebEnginePage(qt.QWebEnginePage):
         self._interceptor = interceptor = Interceptor(self)
         self.setUrlRequestInterceptor(interceptor)
 
-    # def acceptNavigationRequest(self, url, type, isMainFrame):
-    #     if not url.url().startswith('data:'):
-    #         ic(url)
-    #     # to handle html, return False, and use setHtml
-    #     return True
-
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -113,6 +107,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(content)
 
+    # disable request logging
     def log_message(self, format, *args):
         pass
 
@@ -158,6 +153,7 @@ class Widget(qt.QWidget):
 
         self._server = server = ThreadingHTTPServer(('127.0.0.1', 0), RequestHandler)
         server._doc = self._doc
+
         self._thread = thread = Thread(server, self)
         thread.start()
 
@@ -200,5 +196,4 @@ class Widget(qt.QWidget):
                 url.setFragment(hash)
         else:
             url = qt.QUrl(self._prefix + location.lstrip('/'))
-        ic(url)
         self._page.setUrl(url)

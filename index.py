@@ -42,6 +42,7 @@ class Model(qt.QAbstractListModel):
 class List(qt.QListView):
     _item_clicked = qt.Signal(str)
     _key_up = qt.Signal()
+    _letter_pressed = qt.Signal(str)
 
     def __init__(self, doc):
         super().__init__()
@@ -67,16 +68,20 @@ class List(qt.QListView):
             self.setCursor(Qt.ArrowCursor)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Up:
+        key = event.key()
+        if key == Qt.Key_Up:
             index = self.currentIndex()
             if index.isValid() and index.row() == 0:
                 self._key_up.emit()
                 return
-        elif event.key() == Qt.Key_Return:
+        elif key == Qt.Key_Return:
             index = self.currentIndex()
             if index.isValid():
                 self._on_clicked(index)
                 return
+        elif Qt.Key_A <= key <= Qt.Key_Z:
+            self._letter_pressed.emit(event.text())
+            return
         super().keyPressEvent(event)
 
     def _filter(self, text):
@@ -130,6 +135,7 @@ class Widget(qt.QWidget):
         timer.timeout.connect(self._on_timer)
         lst._item_clicked.connect(self._item_clicked)
         lst._key_up.connect(self._focus_edit)
+        lst._letter_pressed.connect(self._on_list_letter_pressed)
 
     def sizeHint(self):
         return qt.QSize(120, 100)
@@ -146,3 +152,8 @@ class Widget(qt.QWidget):
 
     def _focus_edit(self):
         self._edit.setFocus(Qt.TabFocusReason)
+
+    def _on_list_letter_pressed(self, text):
+        edit = self._edit
+        edit.setFocus(Qt.OtherFocusReason)
+        edit.setText(text)
