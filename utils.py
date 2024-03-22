@@ -5,9 +5,7 @@ import colorama
 import orjson as json
 from selectolax.parser import HTMLParser
 
-from . import qt
-
-Qt = qt.Qt
+from . import Qt, qt
 
 
 def shortcut(parent, key):

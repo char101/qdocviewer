@@ -61,11 +61,12 @@ class WebEnginePage(qt.QWebEnginePage):
         super().__init__(parent)
 
         settings = self.settings()
-        settings.setAttribute(qt.QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
-        settings.setAttribute(qt.QWebEngineSettings.WebAttribute.WebGLEnabled, False)
-        settings.setAttribute(qt.QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, False)
-        settings.setAttribute(qt.QWebEngineSettings.WebAttribute.AutoLoadIconsForPage, False)
-        settings.setAttribute(qt.QWebEngineSettings.WebAttribute.NavigateOnDropEnabled, False)
+        wa = qt.QWebEngineSettings.WebAttribute
+        settings.setAttribute(wa.JavascriptCanOpenWindows, False)
+        settings.setAttribute(wa.WebGLEnabled, False)
+        settings.setAttribute(wa.Accelerated2dCanvasEnabled, False)
+        settings.setAttribute(wa.AutoLoadIconsForPage, False)
+        settings.setAttribute(wa.NavigateOnDropEnabled, False)
 
         self._interceptor = interceptor = Interceptor(self)
         self.setUrlRequestInterceptor(interceptor)

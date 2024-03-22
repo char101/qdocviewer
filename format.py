@@ -20,8 +20,6 @@ class Item(dataobject):
 
 
 class Doc:
-    threading = True
-
     def get_index(self):
         for file in ('searchindex.js', 'genindex.html', 'index.json'):
             if file in self:
@@ -97,16 +95,14 @@ class CachedDoc(Doc):
     - other resources should be treated just like directory doc accessing external resources
     """
 
-    threading = False
-
-    def __init__(self, name, prefix):
+    def __init__(self, name, url):
         conn = sqlite3.connect(DOCS_DIR / name, check_same_thread=False, autocommit=True)
         conn.executescript('pragma journal_mode = WAL; pragma synchronous = off; pragma temp_store = memory;')
         conn.execute('create table if not exists cache (path text not null primary key, status int not null, headers text, content_type text, content text, created int not null)')
         self.conn = conn
 
-        assert prefix.endswith('/'), f'Invalid prefix: {prefix}'
-        self.prefix = prefix
+        assert url.endswith('/'), f'Invalid prefix: {url}'
+        self.prefix = url
 
         self.client = None
         self.queue = None
@@ -141,6 +137,7 @@ class CachedDoc(Doc):
         r = self.client.get(url)
         self.queue.put((path, r.status_code, json.dumps(dict(r.headers)), r.headers['content-type'], zstd.compress(r.content), int(datetime.now().timestamp())))
         ic(r.status_code, r.headers['Content-Type'])
+
         return Item(r.content, status=r.status_code, content_type=r.headers['content-type'])
 
 
