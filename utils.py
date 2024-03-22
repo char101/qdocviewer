@@ -52,7 +52,11 @@ def extract_genindex(html):
 
 
 def extract_searchindex(content):
-    data = json.loads(content[16:-1])
+    try:
+        data = json.loads(content[16:-1])
+    except Exception as err:
+        print(content)
+        raise err
     symbols = []
     locations = []
     docnames = data['docnames']

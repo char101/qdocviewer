@@ -1,8 +1,6 @@
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-from . import format, mime_db, qt
+from . import format, qt
 from .index import Widget as IndexWidget
+from .server import HttpServer
 
 
 class WebEngineView(qt.QWebEngineView):
@@ -73,91 +71,30 @@ class WebEnginePage(qt.QWebEnginePage):
         self.setUrlRequestInterceptor(interceptor)
 
 
-class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        doc = self.server._doc
-
-        path = self.path.lstrip('/')
-        if '?' in path:
-            path = path.split('?')[0]
-        if '#' in path:
-            path = path.split('#')[0]
-
-        if path not in doc:
-            if not path.endswith('.html') and (path + '.html') in doc:
-                path = path + '.html'
-            elif (path.rstrip('/') + '/index.html') in doc:
-                path = path.rstrip('/') + '/index.html'
-            else:
-                self.send_content(f'Path {path} not found in {doc.path}', status=HTTPStatus.NOT_FOUND)
-                return
-
-        self.send_response(HTTPStatus.OK)
-
-        mime = mime_db.mimeTypeForFile(path, qt.QMimeDatabase.MatchMode.MatchExtension)
-        assert mime.isValid(), path
-        self.send_header('Content-Type', mime.name())
-
-        content = doc[path]
-        self.send_header('Content-Length', len(content))
-
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 'max-age=604800')  # make js/css cached by the client
-        self.end_headers()
-
-        self.wfile.write(content)
-
-    # disable request logging
-    def log_message(self, format, *args):
-        pass
-
-    def send_content(self, content, status=HTTPStatus.OK, type='text/plain'):
-        if isinstance(content, str):
-            content = content.encode('utf-8')
-        self.send_response(HTTPStatus.OK)
-        self.send_header('Content-Type', type)
-        self.send_header('Content-Length', len(content))
-        self.end_headers()
-        self.wfile.write(content)
-
-
-class Thread(qt.QThread):
-    def __init__(self, server, parent=None):
-        super().__init__(parent)
-        self._server = server
-
-    def run(self):
-        self._server.serve_forever()
-
-
 class Widget(qt.QWidget):
     _title_changed = qt.Signal(str)
 
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, index_page=None, doc_options={}):
         super().__init__()
 
         self._name = name
-        self._index_page = kwargs.pop('index', 'index.html').lstrip('/')
-        self._kwargs = kwargs
+        self._index_page = index_page.lstrip('/') if index_page else 'index.html'
+        self._doc_options = doc_options
         self._initialized = False
 
     def _cleanup(self):
         if self._initialized:
-            self._server.shutdown()
+            self._server.stop()
 
     def _init(self):
         if self._initialized:
             return
 
-        self._doc = format.create_instance(self._name, **self._kwargs)
+        self._doc = format.create_instance(self._name, **self._doc_options)
 
-        self._server = server = ThreadingHTTPServer(('127.0.0.1', 0), RequestHandler)
-        server._doc = self._doc
-
-        self._thread = thread = Thread(server, self)
-        thread.start()
-
-        self._prefix = f'http://127.0.0.1:{self._server.server_port}/'
+        self._server = HttpServer(self._doc)
+        self._server.start()
+        self._prefix = self._server.prefix
 
         self._setup_ui()
 
@@ -176,8 +113,8 @@ class Widget(qt.QWidget):
         splitter.addWidget(webengine)
 
         doc = self._doc
-        if doc.has_index():
-            self._index = index = IndexWidget(doc)
+        if res := doc.get_index():
+            self._index = index = IndexWidget(res)
             index.sizePolicy().setHorizontalPolicy(qt.QSizePolicy.Policy.Fixed)
             splitter.addWidget(index)
             index._item_clicked.connect(self._on_index_clicked)

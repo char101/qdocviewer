@@ -1,8 +1,37 @@
-from rapidfuzz.fuzz import token_ratio as scorer
+from rapidfuzz.fuzz import WRatio as scorer
 from rapidfuzz.process import extract as search
-from rapidfuzz.utils import default_process
 
 from . import Qt, qt
+
+# from rapidfuzz.utils import default_process
+
+
+class WorkerSignals(qt.QObject):
+    _finished = qt.Signal()
+    _error = qt.Signal(str)
+    _result = qt.Signal(list)
+
+
+class SearchTask(qt.QRunnable):
+    _search_finished = qt.Signal(list)
+
+    def __init__(self, search, symbols):
+        super().__init__()
+        self._search = search
+        self._symbols = symbols
+        self._signals = WorkerSignals()
+
+    def run(self):
+        try:
+            if self._search is None or self._search == '':
+                result = [None]
+            else:
+                result = search(self._search, self._symbols, scorer=scorer, limit=20)
+            self._signals._result.emit(result)
+        except Exception as err:
+            self._signals._error.emit(str(err))
+        finally:
+            self._signals._finished.emit()
 
 
 class Model(qt.QAbstractListModel):
@@ -11,7 +40,9 @@ class Model(qt.QAbstractListModel):
         self._symbols = symbols
         self._locations = locations
         self._items = self._symbols
-        self._itemLocations = locations
+        self._item_locations = locations
+        self._thread_pool = qt.QThreadPool()
+        self._thread_pool.setMaxThreadCount(1)
 
     def rowCount(self, index):
         return len(self._items)
@@ -26,16 +57,24 @@ class Model(qt.QAbstractListModel):
             return self._items[index.row()]
 
     def _filter(self, text):
+        pool = self._thread_pool
+        pool.clear()
+
+        task = SearchTask(text.strip(), self._symbols)
+        task.setAutoDelete(True)
+        task._signals._result.connect(self._on_search_result)
+        task._signals._error.connect(lambda err: qt.showWarning(err))
+        pool.start(task)
+
+    def _on_search_result(self, result):
         self.beginResetModel()
-        text = text.strip()
-        if text == '':
+        if result[0] is None:
             self._items = self._symbols
-            self._itemLocations = self._locations
+            self._item_locations = self._locations
         else:
-            result = search(text, self._symbols, scorer=scorer, limit=50, processor=default_process)
             self._items = tuple(res[0] for res in result)
             locations = self._locations
-            self._itemLocations = tuple(locations[res[2]] for res in result)
+            self._item_locations = tuple(locations[res[2]] for res in result)
         self.endResetModel()
 
 
@@ -44,7 +83,7 @@ class List(qt.QListView):
     _key_up = qt.Signal()
     _letter_pressed = qt.Signal(str)
 
-    def __init__(self, doc):
+    def __init__(self, data):
         super().__init__()
 
         self.setMouseTracking(True)
@@ -55,7 +94,7 @@ class List(qt.QListView):
         self.setUniformItemSizes(True)
         self.setLayoutMode(qt.QListView.LayoutMode.Batched)
 
-        symbols, locations = doc.get_index()
+        symbols, locations = data
         self._model = model = Model(symbols, locations)
         self.setModel(model)
 
@@ -89,7 +128,7 @@ class List(qt.QListView):
 
     def _on_clicked(self, index):
         if index.isValid():
-            location = self._model._itemLocations[index.row()]
+            location = self._model._item_locations[index.row()]
             self._item_clicked.emit(location)
 
 
@@ -102,16 +141,19 @@ class LineEdit(qt.QLineEdit):
             qt.QTimer.singleShot(0, self.selectAll)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Down:
-            self._key_down.emit()
-        else:
-            super().keyPressEvent(event)
+        match event.key():
+            case Qt.Key_Down:
+                self._key_down.emit()
+            case Qt.Key_Escape:
+                self.setText('')
+            case _:
+                super().keyPressEvent(event)
 
 
 class Widget(qt.QWidget):
     _item_clicked = qt.Signal(str)
 
-    def __init__(self, doc):
+    def __init__(self, data):
         super().__init__()
 
         self._search_text = None
@@ -123,7 +165,7 @@ class Widget(qt.QWidget):
         self._edit = edit = LineEdit()
         layout.addWidget(edit)
 
-        self._list = lst = List(doc)
+        self._list = lst = List(data)
         layout.addWidget(lst)
 
         self._timer = timer = qt.QTimer()
@@ -142,6 +184,7 @@ class Widget(qt.QWidget):
 
     def _on_text_changed(self, text):
         self._search_text = text
+        self._timer.stop()
         self._timer.start()
 
     def _on_timer(self):

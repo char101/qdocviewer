@@ -18,12 +18,12 @@ sqlite3.register_adapter(datetime.datetime, lambda dt: dt.isoformat(' ', 'second
 
 
 class Db:
-    def __init__(self, dbPath):
+    def __init__(self, dbPath, check_same_thread=True):
         if os.path.isdir(dbPath):
             dbPath = os.path.join(dbPath, 'data.sqlite')
         elif dbPath.endswith('.py'):
             dbPath = os.path.join(os.path.dirname(dbPath), 'data.sqlite')
-        conn = sqlite3.connect(dbPath)
+        conn = sqlite3.connect(dbPath, check_same_thread=check_same_thread)
         conn.row_factory = Row
         curr = conn.cursor()
         curr.execute('pragma journal_mode = WAL')

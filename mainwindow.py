@@ -1,3 +1,5 @@
+import os
+
 from . import Qt, qt, settings, utils
 from .viewer import Widget as Viewer
 
@@ -12,12 +14,11 @@ class TabWidget(qt.QTabWidget):
 
         self.currentChanged.connect(self._on_current_changed)
 
-    def addDoc(self, name, title=None, **kwargs):
-        with utils.timeit('addDoc', name):
-            viewer = Viewer(name, **kwargs)
-            self.addTab(viewer, title or name)
+    def addDoc(self, name, title=None, index_page=None, **kwargs):
+        viewer = Viewer(name, index_page, kwargs)
+        self.addTab(viewer, title or os.path.splitext(name)[0])
 
-            viewer._title_changed.connect(self._on_title_changed)
+        viewer._title_changed.connect(self._on_title_changed)
 
     def _on_current_changed(self, index):
         self.currentWidget()._init()
@@ -40,9 +41,8 @@ class MainWindow(qt.QMainWindow):
         utils.shortcuts(
             self,
             {
-                # list
-                Qt.ALT | Qt.Key_Left: self._back,
-                Qt.ALT | Qt.Key_Right: self._forward,
+                Qt.Key_Left: self._back,
+                Qt.Key_Right: self._forward,
             },
         )
 
@@ -58,8 +58,9 @@ class MainWindow(qt.QMainWindow):
         tabs.addDoc('scipy')
         tabs.addDoc('polars', prefix='py-polars/html')
         tabs.addDoc('python-3.12.2-docs-html.zip', title='python')
-        tabs.addDoc('duckdb.zip', title='duckdb', index='docs/index.html')
-        tabs.addDoc('qt-6.6.2.zip', title='qt', index='qtdoc/index.html')
+        tabs.addDoc('duckdb.zip', title='duckdb', index_page='docs/index.html')
+        tabs.addDoc('qt-6.6.2.zip', title='qt', index_page='qtdoc/index.html')
+        tabs.addDoc('streamlit.sqlite', prefix='https://docs.streamlit.io/')
 
     def keyPressEvent(self, event):
         # uppercase letter is determined by shift key, the code is the same with the lowercase letter
