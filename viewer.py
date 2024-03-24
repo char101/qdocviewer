@@ -1,4 +1,7 @@
-from . import format, qt
+import logging
+from urllib.parse import urljoin
+
+from . import format, qt, term
 from .index import Widget as IndexWidget
 from .server import HttpServer
 
@@ -39,21 +42,48 @@ class Interceptor(qt.QWebEngineUrlRequestInterceptor):
 
     def interceptRequest(self, info):
         url = info.requestUrl()
+
+        def block():
+            logger.warn('%s %s', term.red('BLOCK'), url.url())
+            info.block(True)
+
+        method = info.requestMethod()
+        if method != b'GET':
+            print(term.red('BLOCKED'), term.yellow(str(method)), url)
+            info.block(True)
+
+        doc = self._doc
+        server_prefix = self.parent().parent()._prefix
         match url.scheme():
             case 'https':
-                ic('blocked', url)
-                info.block(True)
+                if isinstance(doc, format.CachedDoc) and url.url().startswith(doc.prefix):
+                    new_url = urljoin(server_prefix, url.path())
+                    # ic('redirect', url.url(), new_url)
+                    info.redirect(qt.QUrl(new_url))
+                elif doc.is_whitelisted(url):
+                    new_url = qt.QUrl(server_prefix + url.url())
+                    # ic('redirect', url.url(), new_url)
+                    info.redirect(new_url)
+                else:
+                    block()
             case 'http':
                 if url.host() != '127.0.0.1':
-                    ic('blocked', url)
-                    info.block(True)
+                    if isinstance(doc, format.CachedDoc) and url.url().startswith(doc.prefix):
+                        new_url = urljoin(server_prefix, url.path())
+                        # ic('redirect', url.url(), new_url)
+                        info.redirect(qt.QUrl(new_url))
+                    elif doc.is_whitelisted(url):
+                        new_url = qt.QUrl(server_prefix + url.url())
+                        # ic('redirect', url.url(), new_url)
+                        info.redirect(new_url)
+                    else:
+                        block()
             case 'file':
-                ic('blocked', url)
-                info.block(True)
+                block()
             case 'data':
                 pass
             case _:
-                ic('blocked', url)
+                block()
 
 
 class WebEnginePage(qt.QWebEnginePage):
@@ -72,20 +102,24 @@ class WebEnginePage(qt.QWebEnginePage):
         self.setUrlRequestInterceptor(interceptor)
 
 
+logger = logging.getLogger(__name__)
+
+
 class Widget(qt.QWidget):
     _title_changed = qt.Signal(str)
 
-    def __init__(self, name, index_page=None, doc_options={}):
+    def __init__(self, name, start=None, doc_options={}):
         super().__init__()
 
         self._name = name
-        self._index_page = index_page.lstrip('/') if index_page else 'index.html'
+        self._start = start
         self._doc_options = doc_options
         self._initialized = False
 
     def _cleanup(self):
         if self._initialized:
             self._server.stop()
+            self._doc.stop()
 
     def _init(self):
         if self._initialized:
@@ -100,6 +134,11 @@ class Widget(qt.QWidget):
         self._setup_ui()
 
         self._initialized = True
+
+        url = qt.QUrl(self._prefix)
+        if self._start:
+            url.setPath('/' + self._start.lstrip('/'))
+        self._webengine.load(url)
 
     def _setup_ui(self):
         layout = qt.QHBoxLayout(self)
@@ -123,8 +162,6 @@ class Widget(qt.QWidget):
             self._index = None
 
         page.titleChanged.connect(self._title_changed)
-
-        webengine.load(qt.QUrl(self._prefix + self._index_page))
 
     def _on_index_clicked(self, location):
         if '#' in location:

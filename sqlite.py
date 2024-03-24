@@ -17,18 +17,21 @@ class Row(sqlite3.Row):
 sqlite3.register_adapter(datetime.datetime, lambda dt: dt.isoformat(' ', 'seconds'))
 
 
+def connect(path, **kwargs):
+    conn = sqlite3.connect(path, **kwargs)
+    conn.executescript('pragma journal_mode = WAL; pragma synchronous = off; pragma temp_store = memory;')
+    return conn
+
+
 class Db:
-    def __init__(self, dbPath, check_same_thread=True):
+    def __init__(self, dbPath):
         if os.path.isdir(dbPath):
             dbPath = os.path.join(dbPath, 'data.sqlite')
         elif dbPath.endswith('.py'):
             dbPath = os.path.join(os.path.dirname(dbPath), 'data.sqlite')
-        conn = sqlite3.connect(dbPath, check_same_thread=check_same_thread)
+        conn = connect(dbPath)
         conn.row_factory = Row
         curr = conn.cursor()
-        curr.execute('pragma journal_mode = WAL')
-        curr.execute('pragma synchronous = off')
-        curr.execute('pragma temp_store = memory')
         curr.execute('create table if not exists setting (key text not null primary key, value blob)')
         self.conn = conn
         self.curr = curr

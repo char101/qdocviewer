@@ -17,8 +17,8 @@ class TabWidget(qt.QTabWidget):
 
         self.currentChanged.connect(self._on_current_changed)
 
-    def addDoc(self, name, title=None, index=None, **kwargs):
-        viewer = Viewer(name, index, kwargs)
+    def addDoc(self, name, title=None, start=None, **kwargs):
+        viewer = Viewer(name, start, kwargs)
         self.addTab(viewer, title or os.path.splitext(name)[0])
 
         viewer._title_changed.connect(self._on_title_changed)

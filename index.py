@@ -134,6 +134,7 @@ class List(qt.QListView):
 
 class LineEdit(qt.QLineEdit):
     _key_down = qt.Signal()
+    _key_enter = qt.Signal()
 
     def focusInEvent(self, event):
         super().focusInEvent(event)
@@ -144,6 +145,8 @@ class LineEdit(qt.QLineEdit):
         match event.key():
             case Qt.Key_Down:
                 self._key_down.emit()
+            case Qt.Key_Return | Qt.Key_Enter:
+                self._key_enter.emit()
             case Qt.Key_Escape:
                 self.setText('')
             case _:
@@ -170,11 +173,12 @@ class Widget(qt.QWidget):
 
         self._timer = timer = qt.QTimer()
         timer.setSingleShot(True)
-        timer.setInterval(100)
+        timer.setInterval(150)
 
         edit.textChanged.connect(self._on_text_changed)
-        edit._key_down.connect(self._focus_list)
-        timer.timeout.connect(self._on_timer)
+        edit._key_down.connect(lambda: qt.QTimer.singleShot(0, self._focus_list))
+        edit._key_enter.connect(self._select_first_result)
+        timer.timeout.connect(self._on_timer)  # search timer
         lst._item_clicked.connect(self._item_clicked)
         lst._key_up.connect(self._focus_edit)
         lst._letter_pressed.connect(self._on_list_letter_pressed)
@@ -191,7 +195,14 @@ class Widget(qt.QWidget):
         self._list._filter(self._search_text)
 
     def _focus_list(self):
-        self._list.setFocus(Qt.TabFocusReason)
+        ls = self._list
+        ls.setFocus(Qt.TabFocusReason)
+        ls.setCurrentIndex(ls._model.index(0, 0, qt.QModelIndex()))
+
+    def _select_first_result(self):
+        locs = self._list._model._item_locations
+        if len(locs) > 0:
+            self._item_clicked.emit(locs[0])
 
     def _focus_edit(self):
         self._edit.setFocus(Qt.TabFocusReason)

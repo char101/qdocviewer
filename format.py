@@ -1,8 +1,10 @@
+import logging
 import sqlite3
+import threading
 from datetime import datetime
 from queue import Empty, SimpleQueue
 from threading import Thread
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import orjson as json
@@ -10,26 +12,40 @@ import zstandard as zstd
 from recordclass import dataobject
 from zipfile_zstd import ZipFile
 
-from . import DOCS_DIR, utils
+from . import DOCS_DIR, sqlite, term, utils
+
+logger = logging.getLogger(__name__)
 
 
 class Item(dataobject):
     content: bytes
     status: int = None
     content_type: str = None
+    location: str = None
 
 
 class Doc:
     def get_index(self):
         for file in ('searchindex.js', 'genindex.html', 'index.json'):
             if file in self:
-                match file:
-                    case 'searchindex.js':
-                        return utils.extract_searchindex(self[file].content)
-                    case 'genindex.html':
-                        return utils.extract_genindex(self[file].content)
-                    case 'index.json':
-                        return json.loads(self[file].content)
+                item = self[file]
+                if item.status == 200 or item.status is None:
+                    match file:
+                        case 'searchindex.js':
+                            return utils.extract_searchindex(item.content)
+                        case 'genindex.html':
+                            return utils.extract_genindex(item.content)
+                        case 'index.json':
+                            return json.loads(item.content)
+
+    def set_whitelist(self, domains):
+        self.whitelist_domains = domains
+
+    def is_whitelisted(self, url):
+        return hasattr(self, 'whitelist_domains') and url.host() in self.whitelist_domains
+
+    def stop(self):
+        pass
 
 
 class DirectoryDoc(Doc):
@@ -72,21 +88,23 @@ class ZippedDoc(Doc):
 
 
 class WriterThread(Thread):
-    def __init__(self, queue, conn):
+    def __init__(self, dbpath, queue):
         super().__init__()
+        self._dbpath = dbpath
         self._queue = queue
-        self._conn = conn
-        self._curr = conn.cursor()
+        self._stop = False
 
     def run(self):
+        conn = sqlite.connect(self._dbpath, autocommit=True)
+        curr = conn.cursor()
         queue = self._queue
-        curr = self._curr
-        while True:
+        while not self._stop:
             try:
                 data = queue.get(timeout=1)
-                curr.execute('insert or ignore into cache (path, status, headers, content_type, content, created) values (?, ?, ?, ?, ?, ?)', data)
+                curr.execute('insert or ignore into cache (path, status, headers, content, created) values (?, ?, jsonb(?), ?, ?)', data)
             except Empty:
                 pass
+        conn.close()
 
 
 class CachedDoc(Doc):
@@ -96,58 +114,77 @@ class CachedDoc(Doc):
     """
 
     def __init__(self, name, url):
-        conn = sqlite3.connect(DOCS_DIR / name, check_same_thread=False, autocommit=True)
-        conn.executescript('pragma journal_mode = WAL; pragma synchronous = off; pragma temp_store = memory;')
-        conn.execute('create table if not exists cache (path text not null primary key, status int not null, headers text, content_type text, content text, created int not null)')
-        self.conn = conn
-
         assert url.endswith('/'), f'Invalid prefix: {url}'
         self.prefix = url
 
-        self.client = None
-        self.queue = None
-        self.writer = None
+        path = DOCS_DIR.joinpath(name).mkdir_p()
+        self.path = path
+        self.dbpath = path / 'cache.sqlite'
+
+        conn = sqlite.connect(self.dbpath)
+        conn.execute('create table if not exists cache (path text not null primary key, status int not null, headers jsonb not null, content text, created int not null)')
+        self.notfound = set(row[0] for row in conn.execute('select path from cache where status = 404').fetchall())
+        conn.close()
+
+        # cannot use http2, only works with AsyncClient
+        self.client = httpx.Client(limits=httpx.Limits(max_connections=5))
+        self.queue = SimpleQueue()
+        self.writer = WriterThread(self.dbpath, self.queue)
+        self.writer.start()
+
+    def stop(self):
+        self.writer._stop = True
 
     def __contains__(self, path):
-        try:
-            row = self.conn.execute('select status from cache where path = ?', (path,)).fetchone()
-        except Exception as err:
-            print(f'error={err} path={path}')
-            raise
-        return row is None or row[0] == 200
+        return path not in self.notfound
 
     def __getitem__(self, path):
-        if row := self.conn.execute('select status, content_type, content from cache where path = ?', (path,)).fetchone():
-            status, content_type, content = row
-            assert content is not None, path
-            # ic('cached', path, status, content_type)
-            return Item(zstd.decompress(content), status=status, content_type=content_type)
+        local = threading.local()
+        if not hasattr(local, 'conn'):
+            local.conn = sqlite.connect(self.dbpath)
+        conn = local.conn
+
+        if row := conn.execute("select status, headers ->> '$.content-type' as content_type, headers ->> '$.location' as location, content from cache where path = ?", (path,)).fetchone():
+            status, content_type, location, content = row
+            # logger.warn('%s %s %s %s', term.blue('CACHE'), path, status, content_type)
+            return Item(zstd.decompress(content) if content else '', status=status, content_type=content_type or 'application/octet-stream', location=location)
+
         return self._fetch(path)
 
     def _fetch(self, path):
         url = urljoin(self.prefix, path)
 
-        if not self.client:
-            self.client = httpx.Client(limits=httpx.Limits(max_connections=5))
-            self.queue = SimpleQueue()
-            self.writer = WriterThread(self.queue, self.conn)
-            self.writer.start()
-
-        ic('fetching', url)
+        # ic('fetching', url)
         r = self.client.get(url)
-        self.queue.put((path, r.status_code, json.dumps(dict(r.headers)), r.headers['content-type'], zstd.compress(r.content), int(datetime.now().timestamp())))
-        ic(r.status_code, r.headers['Content-Type'])
+        self.queue.put((
+            path,
+            r.status_code,
+            json.dumps(dict(r.headers)),  # all keys in lower case
+            zstd.compress(r.content),
+            int(datetime.now().timestamp()),
+        ))
+        logger.warn('%s %s %s %s %s %s', term.yellow('FETCH'), url, r.http_version, term.gr(r.status_code, r.status_code == 200), r.headers.get('content-type'), r.headers.get('location'))
 
-        return Item(r.content, status=r.status_code, content_type=r.headers['content-type'])
+        if r.status_code == 404:
+            self.notfound.add(path)
+
+        return Item(r.content, status=r.status_code, content_type=r.headers.get('content-type', 'application/octet-stream'), location=r.headers.get('location'))
 
 
 def create_instance(path, **kwargs):
     path = DOCS_DIR / path
-    if path.isdir():
-        return DirectoryDoc(path, **kwargs)
-    if path.ext == '.zip':
-        return ZippedDoc(path, **kwargs)
-    if path.ext == '.sqlite':
-        return CachedDoc(path, **kwargs)
+    whitelist = kwargs.pop('whitelist', None)
 
-    raise Exception('Unknown format: ' + path)
+    if 'url' in kwargs:
+        doc = CachedDoc(path, **kwargs)
+    elif path.isdir():
+        doc = DirectoryDoc(path, **kwargs)
+    elif path.ext == '.zip':
+        doc = ZippedDoc(path, **kwargs)
+    else:
+        raise Exception('Unknown format: ' + path)
+
+    if whitelist:
+        doc.set_whitelist(whitelist)
+
+    return doc

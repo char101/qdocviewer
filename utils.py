@@ -50,6 +50,9 @@ def extract_genindex(html):
 
 
 def extract_searchindex(content):
+    if not content.startswith(b'Search.setIndex'):
+        return
+
     try:
         data = json.loads(content[16:-1])
     except Exception as err:
@@ -57,14 +60,27 @@ def extract_searchindex(content):
         raise err
     symbols = []
     locations = []
-    docnames = data['docnames']
+
+    try:
+        docnames = data['docnames']
+        add_html = True
+    except KeyError:
+        docnames = data['docurls']
+        add_html = False
+
     for k, v in data['indexentries'].items():
         if len(v) == 1:
             symbols.append(k)
-            url = docnames[v[0][0]] + '.html'
+            url = docnames[v[0][0]]
+            if add_html:
+                url += '.html'
             if hash := v[0][1]:
                 url += f'#{hash}'
             locations.append(url)
+
+    if not symbols:
+        return None
+
     return symbols, locations
 
 
