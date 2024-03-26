@@ -29,7 +29,7 @@ class MainWindow(qt.QMainWindow):
         tree = self._tabs
 
         def load(items, parent=None):
-            for name in items.keys() if parent is None else sorted(items.keys()):
+            for name, params in items.items():
                 params = items[name]
                 if params is None:
                     params = {}
