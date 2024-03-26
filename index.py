@@ -2,53 +2,20 @@ import re
 
 import polars as pl
 
-from rapidfuzz.fuzz import WRatio as scorer
-from rapidfuzz.process import extract as search
-
 from . import Qt, qt
-
-# from rapidfuzz.utils import default_process
 
 MAX_RESULT = 50
 ws_re = re.compile(r'\s+')
 
 
-class WorkerSignals(qt.QObject):
-    _finished = qt.Signal()
-    _error = qt.Signal(str)
-    _result = qt.Signal(list)
-
-
-class SearchTask(qt.QRunnable):
-    _search_finished = qt.Signal(list)
-
-    def __init__(self, search, symbols):
-        super().__init__()
-        self._search = search
-        self._symbols = symbols
-        self._signals = WorkerSignals()
-
-    def run(self):
-        try:
-            if self._search is None or self._search == '':
-                result = [None]
-            else:
-                result = search(self._search, self._symbols, scorer=scorer, limit=20)
-            self._signals._result.emit(result)
-        except Exception as err:
-            self._signals._error.emit(str(err))
-        finally:
-            self._signals._finished.emit()
-
-
 class Model(qt.QAbstractListModel):
     def __init__(self, df):
         super().__init__()
-        self._df = df
+
         df.sort('symbol')
+        self._df = df
+
         self._items = self._df
-        # self._thread_pool = qt.QThreadPool()
-        # self._thread_pool.setMaxThreadCount(1)
 
     def rowCount(self, index):
         return len(self._items)
@@ -63,14 +30,6 @@ class Model(qt.QAbstractListModel):
             return self._items[index.row(), 'symbol']
 
     def _filter(self, text):
-        # pool = self._thread_pool
-        # pool.clear()
-        #
-        # task = SearchTask(text.strip(), self._symbols)
-        # task.setAutoDelete(True)
-        # task._signals._result.connect(self._on_search_result)
-        # task._signals._error.connect(lambda err: qt.showWarning(err))
-        # pool.start(task)
         self.beginResetModel()
         if text is None or text == '':
             self._items = self._df
@@ -90,24 +49,13 @@ class Model(qt.QAbstractListModel):
             self._items = result
         self.endResetModel()
 
-    def _on_search_result(self, result):
-        self.beginResetModel()
-        if result[0] is None:
-            self._items = self._symbols
-            self._item_locations = self._locations
-        else:
-            self._items = tuple(res[0] for res in result)
-            locations = self._locations
-            self._item_locations = tuple(locations[res[2]] for res in result)
-        self.endResetModel()
-
 
 class List(qt.QListView):
     _item_clicked = qt.Signal(str)
     _key_up = qt.Signal()
     _letter_pressed = qt.Signal(str)
 
-    def __init__(self, data):
+    def __init__(self, df):
         super().__init__()
 
         self.setMouseTracking(True)
@@ -118,9 +66,7 @@ class List(qt.QListView):
         self.setUniformItemSizes(True)
         self.setLayoutMode(qt.QListView.LayoutMode.Batched)
 
-        # symbols, locations = data
-        # self._model = model = Model(symbols, locations)
-        self._model = model = Model(data)
+        self._model = model = Model(df)
         self.setModel(model)
 
         self.clicked.connect(self._on_clicked)
