@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 import threading
 from datetime import datetime
@@ -8,6 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 import orjson as json
+import polars as pl
 import zstandard as zstd
 from recordclass import dataobject
 from zipfile_zstd import ZipFile
@@ -36,7 +38,10 @@ class Doc:
                         case 'genindex.html':
                             return utils.extract_genindex(item.content)
                         case 'index.json':
-                            return json.loads(item.content)
+                            symbols, locations = json.loads(item.content)
+                            df = pl.DataFrame({'symbol': symbols, 'location': locations})
+                            df.sort('symbol')
+                            return df
 
     def set_whitelist(self, domains):
         self.whitelist_domains = domains
@@ -171,18 +176,20 @@ class CachedDoc(Doc):
         return Item(r.content, status=r.status_code, content_type=r.headers.get('content-type', 'application/octet-stream'), location=r.headers.get('location'))
 
 
-def create_instance(path, **kwargs):
-    path = DOCS_DIR / path
-    whitelist = kwargs.pop('whitelist', None)
+def get_type(path, params):
+    if 'url' in params:
+        return CachedDoc
+    if os.path.splitext(path)[1] == '.zip':
+        return ZippedDoc
+    if os.path.isdir(os.path.join(DOCS_DIR, path)):
+        return DirectoryDoc
+    raise Exception('Unknown format: ' + path)
 
-    if 'url' in kwargs:
-        doc = CachedDoc(path, **kwargs)
-    elif path.isdir():
-        doc = DirectoryDoc(path, **kwargs)
-    elif path.ext == '.zip':
-        doc = ZippedDoc(path, **kwargs)
-    else:
-        raise Exception('Unknown format: ' + path)
+
+def create_instance(path, params):
+    whitelist = params.pop('whitelist', None)
+
+    doc = get_type(path, params)(DOCS_DIR / path, **params)
 
     if whitelist:
         doc.set_whitelist(whitelist)

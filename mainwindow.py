@@ -4,33 +4,7 @@ import yaml
 from path import Path
 
 from . import Qt, qt, settings, utils
-from .viewer import Widget as Viewer
-
-
-class TabWidget(qt.QTabWidget):
-    _title_changed = qt.Signal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self._tab_titles = {}
-
-        self.currentChanged.connect(self._on_current_changed)
-
-    def addDoc(self, name, title=None, start=None, **kwargs):
-        viewer = Viewer(name, start, kwargs)
-        self.addTab(viewer, title or os.path.splitext(name)[0])
-
-        viewer._title_changed.connect(self._on_title_changed)
-
-    def _on_current_changed(self, index):
-        self.currentWidget()._init()
-        if index in self._tab_titles:
-            self._title_changed.emit(self._tab_titles[index])
-
-    def _on_title_changed(self, title):
-        self._tab_titles[self.currentIndex()] = title
-        self._title_changed.emit(title)
+from .treetab import Widget as TreeTab
 
 
 class MainWindow(qt.QMainWindow):
@@ -40,6 +14,8 @@ class MainWindow(qt.QMainWindow):
         self._restored = False
 
         self._setup_ui()
+        self._load_docs()
+        self._tabs._tree.expandAll()
 
         utils.shortcuts(
             self,
@@ -49,15 +25,32 @@ class MainWindow(qt.QMainWindow):
             },
         )
 
-        tabs = self._tabs
-        with Path(__file__).parent.joinpath('docs.yaml').open() as f:
-            for name, params in yaml.load(f, Loader=yaml.CLoader).items():
+    def _load_docs(self):
+        tree = self._tabs
+
+        def load(items, parent=None):
+            for name in items.keys() if parent is None else sorted(items.keys()):
+                params = items[name]
                 if params is None:
                     params = {}
-                tabs.addDoc(name, **params)
+
+                if name[0] == '.':
+                    load(params, tree._add_group(name[1:], parent))
+                else:
+                    children = params.pop('children', None)
+                    path = params.pop('path', name)
+                    start = params.pop('start', None)
+
+                    item = tree._add_doc(name, path, start, params, parent=parent)
+
+                    if children:
+                        load(children, item)
+
+        with Path(__file__).parent.joinpath('docs.yaml').open() as f:
+            load(yaml.load(f, Loader=yaml.CLoader))
 
     def _setup_ui(self):
-        self._tabs = tabs = TabWidget()
+        self._tabs = tabs = TreeTab()
         self.setCentralWidget(tabs)
 
         tabs._title_changed.connect(self._update_title)
@@ -73,9 +66,8 @@ class MainWindow(qt.QMainWindow):
         settings['window.geometry'] = self.saveGeometry()
         # settings['window.dock'] = self._dock_manager.saveState()
 
-        tabs = self._tabs
-        for i in range(tabs.count()):
-            tabs.widget(i)._cleanup()
+        for w in self._tabs:
+            w._cleanup()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -83,8 +75,6 @@ class MainWindow(qt.QMainWindow):
             try:
                 if geometry := settings.get('window.geometry'):
                     self.restoreGeometry(geometry)
-                # if state := settings.get('window.dock'):
-                #     self._dock_manager.restoreState(state)
             except TypeError:
                 pass
             self._restored = True
@@ -92,25 +82,25 @@ class MainWindow(qt.QMainWindow):
     def changeEvent(self, event):
         if event.type() == qt.QEvent.Type.ActivationChange and self.isActiveWindow():
             qt.setLastHwnd(self)
-            # self._fixDockGeometry()
 
     def _back(self):
-        self._tabs.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Back)
+        self._tabs._stack.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Back)
 
     def _forward(self):
-        self._tabs.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Forward)
+        self._tabs._stack.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Forward)
 
     def _search_index(self, text):
-        if index := self._tabs.currentWidget()._index:
+        if index := self._tabs._stack.currentWidget()._index:
             edit = index._edit
             edit.setFocus(Qt.OtherFocusReason)
             edit.setText(text)
 
     def _update_title(self, title):
         tabs = self._tabs
-        tab_label = tabs.tabText(tabs.currentIndex())
-        if title:
-            text = f'{tab_label} | {title}'
-        else:
-            text = tab_label
-        self.setWindowTitle(text)
+        if item := tabs._tree.currentItem():
+            tab_label = item.text(0)
+            if title:
+                text = f'{tab_label} | {title}'
+            else:
+                text = tab_label
+            self.setWindowTitle(text)

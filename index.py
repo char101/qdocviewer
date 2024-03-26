@@ -1,9 +1,16 @@
+import re
+
+import polars as pl
+
 from rapidfuzz.fuzz import WRatio as scorer
 from rapidfuzz.process import extract as search
 
 from . import Qt, qt
 
 # from rapidfuzz.utils import default_process
+
+MAX_RESULT = 50
+ws_re = re.compile(r'\s+')
 
 
 class WorkerSignals(qt.QObject):
@@ -35,14 +42,13 @@ class SearchTask(qt.QRunnable):
 
 
 class Model(qt.QAbstractListModel):
-    def __init__(self, symbols, locations):
+    def __init__(self, df):
         super().__init__()
-        self._symbols = symbols
-        self._locations = locations
-        self._items = self._symbols
-        self._item_locations = locations
-        self._thread_pool = qt.QThreadPool()
-        self._thread_pool.setMaxThreadCount(1)
+        self._df = df
+        df.sort('symbol')
+        self._items = self._df
+        # self._thread_pool = qt.QThreadPool()
+        # self._thread_pool.setMaxThreadCount(1)
 
     def rowCount(self, index):
         return len(self._items)
@@ -50,21 +56,39 @@ class Model(qt.QAbstractListModel):
     def multiData(self, index, roleDataSpan):
         for roleData in roleDataSpan:
             if roleData.role() == Qt.DisplayRole:
-                roleData.setData(self._items[index.row()])
+                roleData.setData(self._items[index.row(), 'symbol'])
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
-            return self._items[index.row()]
+            return self._items[index.row(), 'symbol']
 
     def _filter(self, text):
-        pool = self._thread_pool
-        pool.clear()
+        # pool = self._thread_pool
+        # pool.clear()
+        #
+        # task = SearchTask(text.strip(), self._symbols)
+        # task.setAutoDelete(True)
+        # task._signals._result.connect(self._on_search_result)
+        # task._signals._error.connect(lambda err: qt.showWarning(err))
+        # pool.start(task)
+        self.beginResetModel()
+        if text is None or text == '':
+            self._items = self._df
+        else:
+            df = self._df
+            words = ws_re.split(text)
 
-        task = SearchTask(text.strip(), self._symbols)
-        task.setAutoDelete(True)
-        task._signals._result.connect(self._on_search_result)
-        task._signals._error.connect(lambda err: qt.showWarning(err))
-        pool.start(task)
+            word = words.pop(0).lower()
+            result = df.filter(pl.col('symbol').str.to_lowercase().str.starts_with(word))
+            if len(result) < MAX_RESULT:
+                result = result.vstack(df.filter(pl.col('symbol').str.to_lowercase().str.contains(word)))
+
+            # subsequent words are used to filter the result
+            for word in words:
+                result = result.filter(pl.col('symbol').str.to_lowercase().str.contains(word.lower()))
+
+            self._items = result
+        self.endResetModel()
 
     def _on_search_result(self, result):
         self.beginResetModel()
@@ -87,15 +111,16 @@ class List(qt.QListView):
         super().__init__()
 
         self.setMouseTracking(True)
-        self.setStyleSheet('QListView::item:hover { color: yellow }')
+        self.setStyleSheet('QListView::item:hover { background-color: #887003 }')
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setTextElideMode(Qt.ElideNone)
         # this half the time required to load large items
         self.setUniformItemSizes(True)
         self.setLayoutMode(qt.QListView.LayoutMode.Batched)
 
-        symbols, locations = data
-        self._model = model = Model(symbols, locations)
+        # symbols, locations = data
+        # self._model = model = Model(symbols, locations)
+        self._model = model = Model(data)
         self.setModel(model)
 
         self.clicked.connect(self._on_clicked)
@@ -128,7 +153,7 @@ class List(qt.QListView):
 
     def _on_clicked(self, index):
         if index.isValid():
-            location = self._model._item_locations[index.row()]
+            location = self._model._items[index.row(), 'location']
             self._item_clicked.emit(location)
 
 
@@ -173,26 +198,25 @@ class Widget(qt.QWidget):
 
         self._timer = timer = qt.QTimer()
         timer.setSingleShot(True)
-        timer.setInterval(150)
+        timer.setInterval(100)
+        @timer.timeout
+        def _():
+            self._list._filter(self._search_text)
 
-        edit.textChanged.connect(self._on_text_changed)
+        @edit.textChanged
+        def _(text):
+            self._search_text = text
+            self._timer.stop()
+            self._timer.start()
+
         edit._key_down.connect(lambda: qt.QTimer.singleShot(0, self._focus_list))
         edit._key_enter.connect(self._select_first_result)
-        timer.timeout.connect(self._on_timer)  # search timer
         lst._item_clicked.connect(self._item_clicked)
         lst._key_up.connect(self._focus_edit)
-        lst._letter_pressed.connect(self._on_list_letter_pressed)
+        lst._letter_pressed.connect(self._search)
 
     def sizeHint(self):
         return qt.QSize(120, 100)
-
-    def _on_text_changed(self, text):
-        self._search_text = text
-        self._timer.stop()
-        self._timer.start()
-
-    def _on_timer(self):
-        self._list._filter(self._search_text)
 
     def _focus_list(self):
         ls = self._list
@@ -200,14 +224,14 @@ class Widget(qt.QWidget):
         ls.setCurrentIndex(ls._model.index(0, 0, qt.QModelIndex()))
 
     def _select_first_result(self):
-        locs = self._list._model._item_locations
-        if len(locs) > 0:
-            self._item_clicked.emit(locs[0])
+        model = self._list._model
+        if len(model._items):
+            self._item_clicked.emit(model._items[0, 'location'])
 
     def _focus_edit(self):
         self._edit.setFocus(Qt.TabFocusReason)
 
-    def _on_list_letter_pressed(self, text):
+    def _search(self, text):
         edit = self._edit
         edit.setFocus(Qt.OtherFocusReason)
         edit.setText(text)

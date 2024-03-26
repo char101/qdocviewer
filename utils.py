@@ -3,6 +3,7 @@ from time import perf_counter
 
 import colorama
 import orjson as json
+import polars as pl
 from selectolax.parser import HTMLParser
 
 from . import Qt, qt
@@ -46,7 +47,7 @@ def extract_genindex(html):
                 for a in ul.css('a'):
                     symbols.append(symbol + ' ' + a.text())
                     locations.append(a.attributes['href'])
-    return symbols, locations
+    return pl.DataFrame({'symbol': symbols, 'location': locations})
 
 
 def extract_searchindex(content):
@@ -81,7 +82,7 @@ def extract_searchindex(content):
     if not symbols:
         return None
 
-    return symbols, locations
+    return pl.DataFrame({'symbol': symbols, 'location': locations})
 
 
 @contextmanager

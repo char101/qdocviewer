@@ -28,15 +28,6 @@ icecream.ic.configureOutput(
 )
 icecream.install()
 
-try:
-    from .mainwindow import MainWindow
-except Exception as err:
-    import ctypes
-    import traceback
-
-    ctypes.windll.user32.MessageBoxW(None, ''.join(traceback.format_exception(err, limit=5)), str(err), 0)
-    sys.exit(0)
-
 sys.excepthook = qt.excepthook
 
 app = qt.QApplication(sys.argv)
@@ -46,6 +37,15 @@ app.setStyleSheet("""
     QScrollBar:vertical, QScrollBar:horizontal { background: #525252 }
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #696969; }
 """)
+
+try:
+    from .mainwindow import MainWindow
+except Exception as err:
+    import ctypes
+    import traceback
+
+    ctypes.windll.user32.MessageBoxW(None, ''.join(traceback.format_exception(err, limit=5)), str(err), 0)
+    sys.exit(0)
 
 win = MainWindow()
 win.show()

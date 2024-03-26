@@ -108,10 +108,10 @@ logger = logging.getLogger(__name__)
 class Widget(qt.QWidget):
     _title_changed = qt.Signal(str)
 
-    def __init__(self, name, start=None, doc_options={}):
+    def __init__(self, path, start=None, doc_options={}):
         super().__init__()
 
-        self._name = name
+        self._path = path
         self._start = start
         self._doc_options = doc_options
         self._initialized = False
@@ -125,7 +125,7 @@ class Widget(qt.QWidget):
         if self._initialized:
             return
 
-        self._doc = format.create_instance(self._name, **self._doc_options)
+        self._doc = format.create_instance(self._path, self._doc_options)
 
         self._server = HttpServer(self._doc)
         self._server.start()
@@ -153,7 +153,7 @@ class Widget(qt.QWidget):
         splitter.addWidget(webengine)
 
         doc = self._doc
-        if res := doc.get_index():
+        if (res := doc.get_index()) is not None:
             self._index = index = IndexWidget(res)
             index.sizePolicy().setHorizontalPolicy(qt.QSizePolicy.Policy.Fixed)
             splitter.addWidget(index)
