@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from urllib.parse import urlparse
 
 from . import format, mime_db, qt
@@ -27,12 +28,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         mime = item.content_type or mime_db.mimeTypeForFile(path, qt.QMimeDatabase.MatchMode.MatchExtension).name()
 
         self.send_response(status)
-        if status in (301, 302):
-            self.send_header('Location', self._fix_redirect(item.location, doc))
         self.send_header('Content-Type', mime)
         self.send_header('Content-Length', len(item.content))
         self.send_header('Access-Control-Allow-Origin', '*')
-        if status == 200:
+        if status in (301, 302):
+            self.send_header('Location', self._fix_redirect(item.location, doc))
+        elif status == 200:
             self.send_header('Cache-Control', 'max-age=604800')  # make js/css cached by the client
         self.end_headers()
 
@@ -62,32 +63,23 @@ class RequestHandler(BaseHTTPRequestHandler):
             return url[len(doc.prefix) - 1 :]
 
         if url.startswith('http://') or url.startswith('https://'):
-            return f'http://127.0.0.1:{self.server.server_port}/{url}'
+            return self.server.prefix + url
 
         raise Exception('Invalid redirect: ' + url)
-
-
-class Thread(qt.QThread):
-    def __init__(self, server):
-        super().__init__()
-        self._server = server
-
-    def run(self):
-        self._server.serve_forever()
 
 
 class HttpServer(ThreadingHTTPServer):
     def __init__(self, doc):
         super().__init__(('127.0.0.1', 0), RequestHandler)
-        self.doc = doc
+        self.doc = doc  # used by RequestHandler
+        self.thread = Thread(target=self.serve_forever)
 
     @property
     def prefix(self):
         return f'http://127.0.0.1:{self.server_port}/'
 
     def start(self):
-        self._thread = thread = Thread(self)
-        thread.start()
+        self.thread.start()
 
     def stop(self):
         self.shutdown()

@@ -10,10 +10,7 @@ GROUP_ICON = qt.QIcon(ICONS_DIR / 'group.png')
 
 class Delegate(qt.QStyledItemDelegate):
     def paint(self, painter, option, index):
-        tree = self.parent()
-        item = tree.itemFromIndex(index)
-        # draw background for current item
-        if item.data(0, Qt.UserRole) == tree.parent()._current_index:
+        if index == self.parent().currentIndex():
             painter.save()
             painter.setPen(qt.QPen(Qt.NoPen))
             painter.setBrush(qt.QBrush(qt.QColor(SELECTED_BG)))
@@ -52,8 +49,6 @@ class Widget(qt.QWidget):
 
         self._tab_titles = {}
         self._next_index = 0
-        self._current_index = None
-        self._current_item = None
 
         self._setup_ui()
 
@@ -88,9 +83,6 @@ class Widget(qt.QWidget):
             index = item.data(0, Qt.UserRole)
             if index is not None:
                 self._stack.setCurrentIndex(index)
-
-            self._current_item = item
-            self._current_index = index
         @tree._letter_pressed
         def _(text):
             if index := self._stack.currentWidget()._index:
@@ -132,9 +124,8 @@ class Widget(qt.QWidget):
             if _index == self._stack.currentIndex():
                 self._title_changed.emit(title)
 
-        if self._current_item is None:
-            self._current_item = item
-            self._current_index = index
+        if index == 0:
+            self._tree.setCurrentItem(item)
 
         return item
 

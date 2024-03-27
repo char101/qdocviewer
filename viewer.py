@@ -5,34 +5,7 @@ from . import format, qt, term
 from .index import Widget as IndexWidget
 from .server import HttpServer
 
-
-class WebEngineView(qt.QWebEngineView):
-    prevClicked = qt.Signal()
-    nextClicked = qt.Signal()
-    middleClicked = qt.Signal()
-    ctrlLeftClicked = qt.Signal()
-
-    def __init__(self, page):
-        super().__init__(page)
-        # self.focusProxy().installEventFilter(self)
-
-    # def eventFilter(self, source, event):
-    #     if self.focusProxy() == source and event.type() == qt.QEvent.MouseButtonPress:
-    #         match event.button():
-    #             case Qt.LeftButton:
-    #                 if event.modifiers() & Qt.ControlModifier:
-    #                     self.ctrlLeftClicked.emit()
-    #                     return True
-    #             case Qt.XButton1:
-    #                 self.nextClicked.emit()
-    #                 return True
-    #             case Qt.XButton2:
-    #                 self.prevClicked.emit()
-    #                 return True
-    #             case Qt.MiddleButton:
-    #                 self.middleClicked.emit()
-    #                 return True
-    #     return super().eventFilter(source, event)
+logger = logging.getLogger(__name__)
 
 
 class Interceptor(qt.QWebEngineUrlRequestInterceptor):
@@ -102,9 +75,6 @@ class WebEnginePage(qt.QWebEnginePage):
         self.setUrlRequestInterceptor(interceptor)
 
 
-logger = logging.getLogger(__name__)
-
-
 class Widget(qt.QWidget):
     _title_changed = qt.Signal(str)
 
@@ -149,7 +119,7 @@ class Widget(qt.QWidget):
         layout.addWidget(splitter)
 
         self._page = page = WebEnginePage(self)
-        self._webengine = webengine = WebEngineView(page)
+        self._webengine = webengine = qt.QWebEngineView(page)
         splitter.addWidget(webengine)
 
         doc = self._doc

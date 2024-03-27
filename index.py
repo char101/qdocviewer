@@ -30,9 +30,8 @@ class Model(qt.QAbstractListModel):
             return self._items[index.row(), 'symbol']
 
     def _filter(self, text):
-        self.beginResetModel()
         if text is None or text == '':
-            self._items = self._df
+            result = self._df
         else:
             df = self._df
             words = ws_re.split(text)
@@ -46,7 +45,8 @@ class Model(qt.QAbstractListModel):
             for word in words:
                 result = result.filter(pl.col('symbol').str.to_lowercase().str.contains(word.lower()))
 
-            self._items = result
+        self.beginResetModel()
+        self._items = result
         self.endResetModel()
 
 
@@ -69,7 +69,7 @@ class List(qt.QListView):
         self._model = model = Model(df)
         self.setModel(model)
 
-        self.clicked.connect(self._on_clicked)
+        self.clicked.connect(self._open_location)
 
     def mouseMoveEvent(self, event):
         if self.indexAt(event.pos()).isValid():
@@ -87,7 +87,7 @@ class List(qt.QListView):
         elif key == Qt.Key_Return:
             index = self.currentIndex()
             if index.isValid():
-                self._on_clicked(index)
+                self._open_location(index)
                 return
         elif Qt.Key_A <= key <= Qt.Key_Z:
             self._letter_pressed.emit(event.text())
@@ -97,7 +97,7 @@ class List(qt.QListView):
     def _filter(self, text):
         self._model._filter(text)
 
-    def _on_clicked(self, index):
+    def _open_location(self, index):
         if index.isValid():
             location = self._model._items[index.row(), 'location']
             self._item_clicked.emit(location)
@@ -138,17 +138,6 @@ class Widget(qt.QWidget):
 
         self._edit = edit = LineEdit()
         layout.addWidget(edit)
-
-        self._list = lst = List(data)
-        layout.addWidget(lst)
-
-        self._timer = timer = qt.QTimer()
-        timer.setSingleShot(True)
-        timer.setInterval(100)
-        @timer.timeout
-        def _():
-            self._list._filter(self._search_text)
-
         @edit.textChanged
         def _(text):
             self._search_text = text
@@ -157,12 +146,23 @@ class Widget(qt.QWidget):
 
         edit._key_down.connect(lambda: qt.QTimer.singleShot(0, self._focus_list))
         edit._key_enter.connect(self._select_first_result)
+
+        self._list = lst = List(data)
+        layout.addWidget(lst)
         lst._item_clicked.connect(self._item_clicked)
         lst._key_up.connect(self._focus_edit)
         lst._letter_pressed.connect(self._search)
 
+        self._timer = timer = qt.QTimer()
+        timer.setSingleShot(True)
+        timer.setInterval(100)
+        timer.timeout.connect(lambda: self._list._filter(self._search_text))
+
     def sizeHint(self):
-        return qt.QSize(120, 100)
+        return qt.QSize(150, 100)
+
+    def _focus_edit(self):
+        self._edit.setFocus(Qt.TabFocusReason)
 
     def _focus_list(self):
         ls = self._list
@@ -173,9 +173,6 @@ class Widget(qt.QWidget):
         model = self._list._model
         if len(model._items):
             self._item_clicked.emit(model._items[0, 'location'])
-
-    def _focus_edit(self):
-        self._edit.setFocus(Qt.TabFocusReason)
 
     def _search(self, text):
         edit = self._edit

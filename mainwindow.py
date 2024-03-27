@@ -1,5 +1,3 @@
-import os
-
 import yaml
 from path import Path
 
@@ -83,24 +81,20 @@ class MainWindow(qt.QMainWindow):
         if event.type() == qt.QEvent.Type.ActivationChange and self.isActiveWindow():
             qt.setLastHwnd(self)
 
+    @property
+    def _current_page(self):
+        return self._tabs._stack.currentWidget()._page
+
     def _back(self):
-        self._tabs._stack.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Back)
+        self._current_page.triggerAction(qt.QWebEnginePage.WebAction.Back)
 
     def _forward(self):
-        self._tabs._stack.currentWidget()._page.triggerAction(qt.QWebEnginePage.WebAction.Forward)
+        self._current_page.triggerAction(qt.QWebEnginePage.WebAction.Forward)
 
     def _search_index(self, text):
         if index := self._tabs._stack.currentWidget()._index:
-            edit = index._edit
-            edit.setFocus(Qt.OtherFocusReason)
-            edit.setText(text)
+            index._search(text)
 
     def _update_title(self, title):
-        tabs = self._tabs
-        if item := tabs._tree.currentItem():
-            tab_label = item.text(0)
-            if title:
-                text = f'{tab_label} | {title}'
-            else:
-                text = tab_label
-            self.setWindowTitle(text)
+        if item := self._tabs._tree.currentItem():
+            self.setWindowTitle(f'{item.text(0)} | {title}')
