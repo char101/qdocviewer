@@ -67,7 +67,11 @@ class Widget(qt.QWidget):
         tree.header().setStretchLastSection(False)
         tree.setSizeAdjustPolicy(qt.QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         tree.setMouseTracking(True)
-        tree.setStyleSheet('QTreeWidget::item { border: 0; padding: 2px 10px; } QTreeWidget::item:hover { border: 0; background: ' + SELECTED_BG + '; }')
+        tree.setStyleSheet("""
+            QTreeWidget::item { border: 0; padding: 2px 10px; }
+            QTreeWidget::item:hover { border: 0; background: '%s' }
+            QTreeView::branch {  border-image: url(none.png) }
+        """ % SELECTED_BG)
         layout.addWidget(tree)
 
         self._stack = stack = qt.QStackedWidget()
@@ -115,7 +119,7 @@ class Widget(qt.QWidget):
             case format.CachedDoc:
                 item.setIcon(0, INTERNET_ICON)
 
-        viewer = Viewer(path, start=start, doc_options=params)
+        viewer = Viewer(name, path, start=start, doc_options=params)
         self._stack.addWidget(viewer)
 
         @viewer._title_changed

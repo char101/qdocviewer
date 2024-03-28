@@ -30,7 +30,7 @@ class Model(qt.QAbstractListModel):
             return self._items[index.row(), 'symbol']
 
     def _filter(self, text):
-        if text is None or text == '':
+        if text is None or text == '' or len(text) < 3:
             result = self._df
         else:
             df = self._df
@@ -45,9 +45,10 @@ class Model(qt.QAbstractListModel):
             for word in words:
                 result = result.filter(pl.col('symbol').str.to_lowercase().str.contains(word.lower()))
 
-        self.beginResetModel()
-        self._items = result
-        self.endResetModel()
+        if result is not self._items:
+            self.beginResetModel()
+            self._items = result
+            self.endResetModel()
 
 
 class List(qt.QListView):

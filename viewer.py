@@ -1,7 +1,7 @@
 import logging
 from urllib.parse import urljoin
 
-from . import format, qt, term
+from . import USERSCRIPTS_DIR, format, qt, term
 from .index import Widget as IndexWidget
 from .server import HttpServer
 
@@ -78,9 +78,10 @@ class WebEnginePage(qt.QWebEnginePage):
 class Widget(qt.QWidget):
     _title_changed = qt.Signal(str)
 
-    def __init__(self, path, start=None, doc_options={}):
+    def __init__(self, name, path, start=None, doc_options={}):
         super().__init__()
 
+        self._name = name
         self._path = path
         self._start = start
         self._doc_options = doc_options
@@ -95,7 +96,7 @@ class Widget(qt.QWidget):
         if self._initialized:
             return
 
-        self._doc = format.create_instance(self._path, self._doc_options)
+        self._doc = format.create_instance(self._name, self._path, self._doc_options)
 
         self._server = HttpServer(self._doc)
         self._server.start()
@@ -131,6 +132,10 @@ class Widget(qt.QWidget):
         else:
             self._index = None
 
+        userscript_file = USERSCRIPTS_DIR / f'{self._name}.js'
+        if userscript_file.exists():
+            self._set_userscript(userscript_file)
+
         page.titleChanged.connect(self._title_changed)
 
     def _on_index_clicked(self, location):
@@ -142,3 +147,17 @@ class Widget(qt.QWidget):
         else:
             url = qt.QUrl(self._prefix + location.lstrip('/'))
         self._page.setUrl(url)
+
+    def _set_userscript(self, path):
+        scripts = self._page.scripts()
+
+        scripts.clear()  # cannot edit existing script
+
+        if path.exists() and path.size > 0:
+            script = qt.QWebEngineScript()
+            script.setInjectionPoint(qt.QWebEngineScript.InjectionPoint.DocumentReady)
+            script.setSourceCode('(function() {' + path.read_text() + '})()')
+            scripts.insert(script)
+
+    def _remove_userscript(self):
+        self._page.scripts().clear()

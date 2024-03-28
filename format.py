@@ -1,11 +1,10 @@
 import logging
 import os
-import sqlite3
 import threading
 from datetime import datetime
 from queue import Empty, SimpleQueue
 from threading import Thread
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import httpx
 import orjson as json
@@ -27,6 +26,9 @@ class Item(dataobject):
 
 
 class Doc:
+    def __init__(self):
+        self.whitelist = set()
+
     def get_index(self):
         for file in ('searchindex.js', 'genindex.html', 'index.json'):
             if file in self:
@@ -43,11 +45,8 @@ class Doc:
                             df.sort('symbol')
                             return df
 
-    def set_whitelist(self, domains):
-        self.whitelist_domains = domains
-
     def is_whitelisted(self, url):
-        return hasattr(self, 'whitelist_domains') and url.host() in self.whitelist_domains
+        return url.host() in self.whitelist
 
     def stop(self):
         pass
@@ -55,6 +54,7 @@ class Doc:
 
 class DirectoryDoc(Doc):
     def __init__(self, path, prefix=None):
+        super().__init__()
         self.path = path
         if prefix:
             self.path = self.path / prefix
@@ -68,6 +68,7 @@ class DirectoryDoc(Doc):
 
 class ZippedDoc(Doc):
     def __init__(self, path, prefix=None):
+        super().__init__()
         self.path = path
         self.prefix = (prefix.strip('/') + '/') if prefix else ''
         self.zf = ZipFile(path)
@@ -119,6 +120,7 @@ class CachedDoc(Doc):
     """
 
     def __init__(self, name, url):
+        super().__init__()
         assert url.endswith('/'), f'Invalid prefix: {url}'
         self.prefix = url
 
@@ -159,7 +161,6 @@ class CachedDoc(Doc):
     def _fetch(self, path):
         url = urljoin(self.prefix, path)
 
-        # ic('fetching', url)
         r = self.client.get(url)
         self.queue.put((
             path,
@@ -186,12 +187,12 @@ def get_type(path, params):
     raise Exception('Unknown format: ' + path)
 
 
-def create_instance(path, params):
+def create_instance(name, path, params):
     whitelist = params.pop('whitelist', None)
 
     doc = get_type(path, params)(DOCS_DIR / path, **params)
 
     if whitelist:
-        doc.set_whitelist(whitelist)
+        doc.whitelist = whitelist
 
     return doc
