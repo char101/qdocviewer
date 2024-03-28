@@ -26,10 +26,22 @@ class Item(dataobject):
 
 
 class Doc:
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.whitelist = set()
 
     def get_index(self):
+        match self.name:
+            case 'mdn':
+                df = pl.DataFrame(json.loads(self['en-US/search-index.json'].content)).rename({'title': 'symbol', 'url': 'location'})
+                df.sort('symbol')
+                return df
+            case 'autohotkey':
+                data = json.loads(self['static/source/data_index.js'].content[12:-3])
+                df = pl.DataFrame(data, orient='row').rename(dict(column_0='symbol', column_1='location'))
+                df.sort('symbol')
+                return df
+
         for file in ('searchindex.js', 'genindex.html', 'index.json'):
             if file in self:
                 item = self[file]
@@ -53,8 +65,8 @@ class Doc:
 
 
 class DirectoryDoc(Doc):
-    def __init__(self, path, prefix=None):
-        super().__init__()
+    def __init__(self, name, path, prefix=None):
+        super().__init__(name)
         self.path = path
         if prefix:
             self.path = self.path / prefix
@@ -67,8 +79,8 @@ class DirectoryDoc(Doc):
 
 
 class ZippedDoc(Doc):
-    def __init__(self, path, prefix=None):
-        super().__init__()
+    def __init__(self, name, path, prefix=None):
+        super().__init__(name)
         self.path = path
         self.prefix = (prefix.strip('/') + '/') if prefix else ''
         self.zf = ZipFile(path)
@@ -119,13 +131,12 @@ class CachedDoc(Doc):
     - other resources should be treated just like directory doc accessing external resources
     """
 
-    def __init__(self, name, url):
-        super().__init__()
+    def __init__(self, name, path, url):
+        super().__init__(name)
         assert url.endswith('/'), f'Invalid prefix: {url}'
         self.prefix = url
 
-        path = DOCS_DIR.joinpath(name).mkdir_p()
-        self.path = path
+        self.path = path.mkdir_p()
         self.dbpath = path / 'cache.sqlite'
 
         conn = sqlite.connect(self.dbpath)
@@ -190,7 +201,7 @@ def get_type(path, params):
 def create_instance(name, path, params):
     whitelist = params.pop('whitelist', None)
 
-    doc = get_type(path, params)(DOCS_DIR / path, **params)
+    doc = get_type(path, params)(name, DOCS_DIR / path, **params)
 
     if whitelist:
         doc.whitelist = whitelist

@@ -1,6 +1,7 @@
 *.txt
 *.bat
 *.yaml
+*.dll
 
 docs/
 data/
