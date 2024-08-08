@@ -19,11 +19,13 @@ class Interceptor(qt.QWebEngineUrlRequestInterceptor):
         def block():
             logger.warn('%s %s', term.red('BLOCK'), url.url())
             info.block(True)
+            self._doc.counter['block'] += 1
 
         method = info.requestMethod()
         if method != b'GET':
             print(term.red('BLOCKED'), term.yellow(str(method)), url)
             info.block(True)
+            self._doc.counter['block'] += 1
 
         doc = self._doc
         server_prefix = self.parent().parent()._prefix
@@ -105,6 +107,7 @@ class ViewerWidget(qt.QWidget):
         layout.addWidget(splitter)
 
         self._page = page = WebEnginePage(self)
+        page.loadStarted.connect(self._doc.reset_counter)
         self._webengine = webengine = qt.QWebEngineView(page)
         splitter.addWidget(webengine)
 

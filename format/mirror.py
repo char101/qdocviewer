@@ -108,11 +108,19 @@ class MirrorFormat(BaseFormat):
             if row := conn.execute("select status, headers ->> '$.content-type' as content_type, headers ->> '$.location' as location, content, updated from cache where path = ?", (_path,)).fetchone():
                 status, content_type, location, content, updated = row
                 item = Item(zstd.decompress(content) if content else '', status=status, content_type=content_type or 'application/octet-stream', location=location, updated=updated)
+
+                # page need to be refreshed
                 if baseline and (updated is None or updated < baseline):
+                    self.counter['refresh'] += 1
                     return self._fetch(_path, item)
+
+                # page is cached
                 # logger.warn('%s %s %s %s', term.blue('CACHE'), _path, status, content_type)
+                self.counter['cache'] += 1
                 return item
 
+        # fetch page
+        self.counter['fetch'] += 1
         return self._fetch(path)
 
     def _fetch(self, path, item=None):

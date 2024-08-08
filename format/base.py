@@ -30,6 +30,7 @@ class BaseFormat:
     def __init__(self, name, params):
         self.name = name
         self.whitelist = params.get('whitelist', set())
+        self.reset_counter()
 
     @cached_property
     def format(self):
@@ -40,6 +41,9 @@ class BaseFormat:
         yield name
         yield name + '.html'
         yield name.rstrip('/') + '/index.html' if name else 'index.html'
+
+    def reset_counter(self):
+        self.counter = {'fetch': 0, 'cache': 0, 'refresh': 0, 'block': 0}
 
     def process_index(self, path, content):
         match os.path.basename(path):

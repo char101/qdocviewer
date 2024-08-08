@@ -18,6 +18,9 @@ class StatusBar(qt.QStatusBar):
         # self._doc_time = w = qt.QLabel(self)
         # self.addWidget(w)
 
+        self._counter = w = qt.QLabel(self)
+        self.addWidget(w)
+
         self._search = w = qt.QLineEdit(self)
         w.setSizePolicy(qt.QSizePolicy.Policy.Minimum, qt.QSizePolicy.Policy.Preferred)
         self.addPermanentWidget(w)
@@ -45,3 +48,14 @@ class StatusBar(qt.QStatusBar):
         # item = self.parent()._stack.currentWidget()._doc[path]
         # if item:
         #     self._doc_time.setText(datetime.fromtimestamp(item.updated).isoformat(' '))
+
+    def _update_counter(self):
+        if viewer := self.parent()._stack.currentWidget():
+            doc = viewer._doc
+            if hasattr(doc, 'counter'):
+                counter = doc.counter
+                texts = []
+                for k, color in {'fetch': '#63C885', 'cache': '#6AB3E7', 'block': '#FF8C8C', 'refresh': '#BDA434'}.items():
+                    if counter[k]:
+                        texts.append(f'<span style="color:{color}">{k.upper()}</span> {counter[k]}')
+                self._counter.setText(' '.join(texts))

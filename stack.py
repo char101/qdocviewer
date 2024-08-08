@@ -6,6 +6,7 @@ class StackWidget(qt.QStackedWidget):
     _title_changed = qt.Signal(str)
     _url_changed = qt.Signal(qt.QUrl)
     _doc_changed = qt.Signal(object)
+    _load_finished = qt.Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -29,6 +30,7 @@ class StackWidget(qt.QStackedWidget):
                 if index == self.currentIndex():
                     self._title_changed.emit(title)
             viewer._page.urlChanged.connect(self._url_changed)
+            viewer._page.loadFinished.connect(self._load_finished)
         else:
             index = self._viewers[id]
 

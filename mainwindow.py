@@ -61,6 +61,7 @@ class MainWindow(qt.QMainWindow):
         stack._title_changed.connect(self._update_title)
         stack._doc_changed.connect(self._status._set_doc)
         stack._url_changed.connect(self._status._set_url)
+        stack._load_finished.connect(self._status._update_counter)
         layout.addWidget(stack, 1)
 
         self.setCentralWidget(widget)
