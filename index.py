@@ -12,22 +12,30 @@ class Model(qt.QAbstractListModel):
     def __init__(self, df):
         super().__init__()
 
-        df.sort('symbol')
-        self._df = df
-
+        self._df = df.with_columns(symboll=pl.col.symbol.str.to_lowercase()).sort('symboll')
         self._items = self._df
 
     def rowCount(self, index):
         return len(self._items)
 
     def multiData(self, index, roleDataSpan):
+        items = self._items
+        row = index.row()
         for roleData in roleDataSpan:
-            if roleData.role() == Qt.DisplayRole:
-                roleData.setData(self._items[index.row(), 'symbol'])
+            match roleData.role():
+                case Qt.DisplayRole:
+                    roleData.setData(items[row, 'symbol'])
+                case Qt.ToolTipRole:
+                    roleData.setData(items[row, 'location'])
+                case _:
+                    roleData.clearData()
 
     def data(self, index, role):
-        if role == Qt.DisplayRole:
-            return self._items[index.row(), 'symbol']
+        match role:
+            case Qt.DisplayRole:
+                return self._items[index.row(), 'symbol']
+            case Qt.ToolTipRole:
+                return self._items[index.row(), 'location']
 
     def _filter(self, text):
         if text is None or text == '' or len(text) < 3:
@@ -37,13 +45,19 @@ class Model(qt.QAbstractListModel):
             words = ws_re.split(text)
 
             word = words.pop(0).lower()
-            result = df.filter(pl.col('symbol').str.to_lowercase().str.starts_with(word))
+
+            # get rows starting with first word
+            result = df.filter(pl.col.symboll.str.starts_with(word))
+
+            # get rows containing first word
             if len(result) < MAX_RESULT:
-                result = result.vstack(df.filter(pl.col('symbol').str.to_lowercase().str.contains(word)))
+                result = result.vstack(df.filter(~pl.col.symboll.str.starts_with(word) & pl.col.symboll.str.contains(word, literal=True)))
 
             # subsequent words are used to filter the result
             for word in words:
-                result = result.filter(pl.col('symbol').str.to_lowercase().str.contains(word.lower()))
+                result = result.filter(pl.col.symboll.str.contains(word.lower(), literal=True))
+
+            result = result.sort(pl.col.symboll.str.len_bytes())
 
         if result is not self._items:
             self.beginResetModel()

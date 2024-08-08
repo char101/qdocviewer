@@ -3,27 +3,26 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from urllib.parse import urlparse
 
-from . import format, mime_db, qt
+from . import mime_db, qt
 
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         doc = self.server.doc
-        path = urlparse(self.path).path.lstrip('/')
+        if self.path.startswith('/https://') or self.path.startswith('/http://'):
+            path = self.path.lstrip('/')
+        else:
+            path = urlparse(self.path).path.lstrip('/')  # remove query from path
 
-        if not isinstance(doc, format.CachedDoc) and path == '':
+        if not doc.format == 'mirror' and path == '':
             path = 'index.html'
 
-        if path not in doc:
-            if not path.endswith('.html') and (path + '.html') in doc:
-                path = path + '.html'
-            elif (path.rstrip('/') + '/index.html') in doc:
-                path = path.rstrip('/') + '/index.html'
-            else:
-                self._send_content(f'Path {path} not found in {doc.path}', status=HTTPStatus.NOT_FOUND)
-                return
-
-        item = doc[path]
+        try:
+            item = doc[path]
+        except KeyError:
+            ic('not found', path)
+            self._send_content(f'Path {path} not found in {doc.path}', status=HTTPStatus.NOT_FOUND)
+            return
         status = item.status or HTTPStatus.OK
         mime = item.content_type or mime_db.mimeTypeForFile(path, qt.QMimeDatabase.MatchMode.MatchExtension).name()
 

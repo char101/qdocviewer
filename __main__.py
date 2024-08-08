@@ -5,6 +5,7 @@ import colorama
 import icecream
 import pygments
 from path import Path
+from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 
 from . import qt
 
@@ -30,13 +31,18 @@ icecream.install()
 
 sys.excepthook = qt.excepthook
 
+# prevent flashing when moving docks
+QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.OpenGL)
+
 app = qt.QApplication(sys.argv)
 app.setStyle('fusion')
 app.setWindowIcon(qt.QIcon(Path(__file__).parent / 'app.png'))
-app.setStyleSheet("""
+app.setStyleSheet(
+    """
     QScrollBar:vertical, QScrollBar:horizontal { background: #525252 }
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #696969; }
-""")
+"""
+)
 
 try:
     from .mainwindow import MainWindow

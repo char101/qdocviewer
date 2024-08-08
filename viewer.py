@@ -29,7 +29,7 @@ class Interceptor(qt.QWebEngineUrlRequestInterceptor):
         server_prefix = self.parent().parent()._prefix
         match url.scheme():
             case 'https':
-                if isinstance(doc, format.CachedDoc) and url.url().startswith(doc.prefix):
+                if doc.format == 'mirror' and url.url().startswith(doc.prefix):
                     new_url = urljoin(server_prefix, url.path())
                     # ic('redirect', url.url(), new_url)
                     info.redirect(qt.QUrl(new_url))
@@ -41,7 +41,7 @@ class Interceptor(qt.QWebEngineUrlRequestInterceptor):
                     block()
             case 'http':
                 if url.host() != '127.0.0.1':
-                    if isinstance(doc, format.CachedDoc) and url.url().startswith(doc.prefix):
+                    if doc.format == 'mirror' and url.url().startswith(doc.prefix):
                         new_url = urljoin(server_prefix, url.path())
                         # ic('redirect', url.url(), new_url)
                         info.redirect(qt.QUrl(new_url))
@@ -62,6 +62,7 @@ class Interceptor(qt.QWebEngineUrlRequestInterceptor):
 class WebEnginePage(qt.QWebEnginePage):
     def __init__(self, parent):
         super().__init__(parent)
+        self.setBackgroundColor(qt.QColor('#333333'))
 
         settings = self.settings()
         wa = qt.QWebEngineSettings.WebAttribute
@@ -75,41 +76,25 @@ class WebEnginePage(qt.QWebEnginePage):
         self.setUrlRequestInterceptor(interceptor)
 
 
-class Widget(qt.QWidget):
-    _title_changed = qt.Signal(str)
-
-    def __init__(self, name, path, start=None, doc_options={}):
+class ViewerWidget(qt.QWidget):
+    def __init__(self, doc):
         super().__init__()
 
-        self._name = name
-        self._path = path
-        self._start = start
-        self._doc_options = doc_options
-        self._initialized = False
-
-    def _cleanup(self):
-        if self._initialized:
-            self._server.stop()
-            self._doc.stop()
-
-    def _init(self):
-        if self._initialized:
-            return
-
-        self._doc = format.create_instance(self._name, self._path, self._doc_options)
-
+        self._doc = doc
         self._server = HttpServer(self._doc)
         self._server.start()
         self._prefix = self._server.prefix
 
         self._setup_ui()
 
-        self._initialized = True
-
         url = qt.QUrl(self._prefix)
-        if self._start:
-            url.setPath('/' + self._start.lstrip('/'))
+        if start := getattr(self._doc, 'start', None):
+            url.setPath('/' + start.lstrip('/'))
         self._webengine.load(url)
+
+    def _cleanup(self):
+        self._server.stop()
+        self._doc.stop()
 
     def _setup_ui(self):
         layout = qt.QHBoxLayout(self)
@@ -132,11 +117,9 @@ class Widget(qt.QWidget):
         else:
             self._index = None
 
-        userscript_file = USERSCRIPTS_DIR / f'{self._name}.js'
+        userscript_file = USERSCRIPTS_DIR / f'{self._doc.name}.js'
         if userscript_file.exists():
             self._set_userscript(userscript_file)
-
-        page.titleChanged.connect(self._title_changed)
 
     def _on_index_clicked(self, location):
         if '#' in location:

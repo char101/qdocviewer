@@ -1,7 +1,9 @@
 from contextlib import contextmanager
 from time import perf_counter
+from urllib.parse import urljoin
 
 import colorama
+import lxml.html
 import orjson as json
 import polars as pl
 from selectolax.parser import HTMLParser
@@ -31,7 +33,13 @@ def fix_html(html):
     return tree.html
 
 
-def extract_genindex(html):
+def epoch():
+    from time import time
+
+    return int(time())
+
+
+def extract_genindex(html, base_url='/'):
     tree = HTMLParser(html)
     symbols = []
     locations = []
@@ -42,15 +50,15 @@ def extract_genindex(html):
             # assert text[0] != '(', li.parent.parent.tag
             symbol = text.split(' (', 1)[0]
             symbols.append(text)
-            locations.append(a.attributes['href'])
+            locations.append(urljoin(base_url, a.attributes['href']))
             if ul := li.css_first('ul'):
                 for a in ul.css('a'):
                     symbols.append(symbol + ' ' + a.text())
-                    locations.append(a.attributes['href'])
+                    locations.append(urljoin(base_url, a.attributes['href']))
     return pl.DataFrame({'symbol': symbols, 'location': locations})
 
 
-def extract_searchindex(content):
+def extract_searchindex(content, base_url='/'):
     if not content.startswith(b'Search.setIndex'):
         return
 
@@ -59,8 +67,6 @@ def extract_searchindex(content):
     except Exception as err:
         print(content)
         raise err
-    symbols = []
-    locations = []
 
     try:
         docnames = data['docnames']
@@ -69,20 +75,40 @@ def extract_searchindex(content):
         docnames = data['docurls']
         add_html = False
 
+    symbols = []
+    locations = []
+
     for k, v in data['indexentries'].items():
         if len(v) == 1:
-            symbols.append(k)
             url = docnames[v[0][0]]
             if add_html:
                 url += '.html'
             if hash := v[0][1]:
                 url += f'#{hash}'
-            locations.append(url)
+            symbols.append(k)
+            locations.append(urljoin(base_url, url))
 
     if not symbols:
         return None
 
     return pl.DataFrame({'symbol': symbols, 'location': locations})
+
+
+def extract_hhk(content):
+    tree = lxml.html.fromstring(content)
+
+    symbols = []
+    locations = []
+    try:
+        for li in tree.xpath('//li'):
+            symbol = li.find('object/param[@name="Name"]').get('value')
+            location = li.find('object/param[@name="Local"]').get('value')
+            symbols.append(symbol)
+            locations.append(location)
+        return pl.DataFrame(dict(symbol=symbols, location=locations))
+    except AttributeError:
+        print(lxml.html.tostring(li))
+        raise
 
 
 @contextmanager

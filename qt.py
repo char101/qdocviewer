@@ -79,5 +79,5 @@ def excepthook(type, value, tb):
 def setLastHwnd(hwnd):
     if isinstance(hwnd, QMainWindow):
         hwnd = int(hwnd.winId())
-    with open(r'R:\TEMP\last_hwnd', 'w') as f:
+    with open(r'S:\qt\last_hwnd', 'w') as f:
         f.write(str(hwnd))

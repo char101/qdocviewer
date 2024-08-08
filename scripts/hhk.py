@@ -9,12 +9,16 @@ def convert(source):
 
     symbols = []
     locations = []
+    keys = set()
     try:
         for li in tree.xpath('//li'):
             symbol = li.find('object/param[@name="Name"]').get('value')
             location = li.find('object/param[@name="Local"]').get('value')
-            symbols.append(symbol)
-            locations.append(location)
+            key = f'{symbol}|{location}'
+            if key not in keys:
+                symbols.append(symbol)
+                locations.append(location)
+                keys.add(key)
     except AttributeError:
         print(html.tostring(li))
         raise
