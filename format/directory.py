@@ -14,7 +14,7 @@ class DirectoryFormat(BaseFormat):
             try:
                 path = self.path / name
                 content = path.read_bytes()
-                return Item(content=content, time=path.mtime)
+                return Item(name, content=content, time=path.mtime)
             except FileNotFoundError:
                 pass
         raise KeyError(f'Cannot find {name} in {self.path}')

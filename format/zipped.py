@@ -24,7 +24,7 @@ class ZippedFormat(BaseFormat):
                 with self.zf.open(path) as f:
                     content = f.read()
                 info = self.zf.getinfo(path)
-                return Item(content=content, updated=int(datetime(*info.date_time).timestamp()))
+                return Item(name, content=content, updated=int(datetime(*info.date_time).timestamp()))
             except KeyError:
                 pass
         raise KeyError(f'Cannot find {name} in {self.path}')

@@ -19,6 +19,7 @@ GLOBAL_WHITELIST = {
 
 
 class Item(dataobject):
+    name: str
     content: bytes
     status: int = None
     content_type: str = None

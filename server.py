@@ -23,8 +23,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             ic('not found', path)
             self._send_content(f'Path {path} not found in {doc.path}', status=HTTPStatus.NOT_FOUND)
             return
+
         status = item.status or HTTPStatus.OK
-        mime = item.content_type or mime_db.mimeTypeForFile(path, qt.QMimeDatabase.MatchMode.MatchExtension).name()
+        mime = item.content_type or mime_db.mimeTypeForFile(item.name, qt.QMimeDatabase.MatchMode.MatchExtension).name()
 
         self.send_response(status)
         self.send_header('Content-Type', mime)

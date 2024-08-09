@@ -132,6 +132,7 @@ class ViewerWidget(qt.QWidget):
                 url.setFragment(hash)
         else:
             url = qt.QUrl(self._prefix + location.lstrip('/'))
+            ic(url)
         self._page.setUrl(url)
 
     def _set_userscript(self, path):

@@ -107,7 +107,7 @@ class MirrorFormat(BaseFormat):
         for _path in self.generate_names(path):
             if row := conn.execute("select status, headers ->> '$.content-type' as content_type, headers ->> '$.location' as location, content, updated from cache where path = ?", (_path,)).fetchone():
                 status, content_type, location, content, updated = row
-                item = Item(zstd.decompress(content) if content else '', status=status, content_type=content_type or 'application/octet-stream', location=location, updated=updated)
+                item = Item(_path, zstd.decompress(content) if content else '', status=status, content_type=content_type or 'application/octet-stream', location=location, updated=updated)
 
                 # page need to be refreshed
                 if baseline and (updated is None or updated < baseline):
