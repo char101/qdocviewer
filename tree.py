@@ -46,7 +46,7 @@ class TreeWidget(qt.QTreeWidget):
         )
 
         self._id = 0
-        with Path(__file__).parent.joinpath('docs.yaml').open() as f:
+        with (Path(__file__).parent / 'docs' / 'docs.yaml').open() as f:
             self._load(yaml.load(f, Loader=yaml.CLoader), self)
         self.expandAll()
 
@@ -72,12 +72,14 @@ class TreeWidget(qt.QTreeWidget):
             if params is None:
                 params = {}
 
-            if name[0] == '.':
-                item = self._add_group(name[1:], parent)
+            format = get_format(name, params)
+
+            if name[0] == '.' or format is None:
+                item = self._add_group(name, parent)
                 self._load(params, item)
             else:
                 children = params.pop('children', None)
-                item = self._add_item(name, params, parent)
+                item = self._add_item(name, params, format, parent)
                 if children:
                     self._load(children, item)
 
@@ -89,11 +91,10 @@ class TreeWidget(qt.QTreeWidget):
         item.setIcon(0, GROUP_ICON)
         return item
 
-    def _add_item(self, name, params, parent):
+    def _add_item(self, name, params, format, parent):
         global icons_cache
         item = qt.QTreeWidgetItem(parent)
         item.setText(0, name)
-        format = get_format(name, params)
         if format not in icons_cache:
             icons_cache[format] = qt.QIcon(ICONS_DIR / f'{format}.png')
         item.setIcon(0, icons_cache[format])

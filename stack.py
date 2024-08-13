@@ -17,6 +17,9 @@ class StackWidget(qt.QStackedWidget):
     def _open(self, data):
         id, name, params, fmt = data
 
+        if not fmt:
+            return
+
         if id not in self._viewers:
             doc = format.create_instance(name, params, fmt)
             viewer = ViewerWidget(doc)

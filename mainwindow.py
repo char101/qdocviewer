@@ -23,6 +23,7 @@ class MainWindow(qt.QMainWindow):
             Qt.Key_F3: self._search_next,
             Qt.SHIFT | Qt.Key_F3: self._search_prev,
             Qt.Key_Escape: self._search_clear,
+            Qt.CTRL | Qt.SHIFT | Qt.Key_I: self._toggle_inspector,
         },)
 
         userscripts_dir = DOCS_DIR / '_userscripts'
@@ -120,7 +121,7 @@ class MainWindow(qt.QMainWindow):
         widgets = {}
         for i in range(stack.count()):
             w = stack.widget(i)
-            widgets[w._name] = w
+            widgets[w._doc.name] = w
 
         names = set()
         for file in Path(path).files():
@@ -165,3 +166,7 @@ class MainWindow(qt.QMainWindow):
                 viewer._doc.set_prop('baseline', utils.epoch())
                 viewer._doc.__getitem__.cache_clear()
                 self._status._set_doc(viewer._doc)
+
+    def _toggle_inspector(self):
+        if viewer := self._stack.currentWidget():
+            viewer._toggle_inspector()

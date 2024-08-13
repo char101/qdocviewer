@@ -1,7 +1,7 @@
 import logging
 from urllib.parse import urljoin
 
-from . import USERSCRIPTS_DIR, format, qt, term
+from . import USERSCRIPTS_DIR, Qt, qt, term
 from .index import Widget as IndexWidget
 from .server import HttpServer
 
@@ -74,6 +74,11 @@ class WebEnginePage(qt.QWebEnginePage):
         settings.setAttribute(wa.AutoLoadIconsForPage, False)
         settings.setAttribute(wa.NavigateOnDropEnabled, False)
 
+        settings.setFontFamily(qt.QWebEngineSettings.FontFamily.StandardFont, 'Segoe UI')
+        settings.setFontFamily(qt.QWebEngineSettings.FontFamily.SansSerifFont, 'Segoe UI')
+        settings.setFontFamily(qt.QWebEngineSettings.FontFamily.SerifFont, 'Noto Serif')
+        settings.setFontFamily(qt.QWebEngineSettings.FontFamily.FixedFont, 'Cascadia Mono')
+
         self._interceptor = interceptor = Interceptor(self)
         self.setUrlRequestInterceptor(interceptor)
 
@@ -103,13 +108,20 @@ class ViewerWidget(qt.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self._splitter = splitter = qt.QSplitter()
+        self._splitter = splitter = qt.QSplitter(self)
         layout.addWidget(splitter)
+
+        self._inspector_splitter = inspector_splitter = qt.QSplitter(Qt.Vertical, self)
+        splitter.addWidget(inspector_splitter)
 
         self._page = page = WebEnginePage(self)
         page.loadStarted.connect(self._doc.reset_counter)
         self._webengine = webengine = qt.QWebEngineView(page)
-        splitter.addWidget(webengine)
+        inspector_splitter.addWidget(webengine)
+
+        # placeholder for inspector
+        self._inspector_page = None
+        self._inspector_view = None
 
         doc = self._doc
         if (res := doc.get_index()) is not None:
@@ -132,7 +144,6 @@ class ViewerWidget(qt.QWidget):
                 url.setFragment(hash)
         else:
             url = qt.QUrl(self._prefix + location.lstrip('/'))
-            ic(url)
         self._page.setUrl(url)
 
     def _set_userscript(self, path):
@@ -148,3 +159,22 @@ class ViewerWidget(qt.QWidget):
 
     def _remove_userscript(self):
         self._page.scripts().clear()
+
+    def _toggle_inspector(self):
+        if self._inspector_page is None:
+            self._inspector_page = page = qt.QWebEnginePage(self)
+            page.setBackgroundColor(qt.QColor('#282828'))
+            page.setInspectedPage(self._page)
+            page.windowCloseRequested.connect(self._toggle_inspector)
+            self._inspector_view = view = qt.QWebEngineView(page, self)
+            self._inspector_splitter.addWidget(view)
+            size = self._inspector_splitter.sizes()
+            if size[1] == 0:
+                h = size[0] // 3
+                self._inspector_splitter.setSizes([size[0] - h, h])
+        else:
+            # deleting the widget will automatically remote it from the splitter
+            self._inspector_page.deleteLater()
+            self._inspector_view.deleteLater()
+            self._inspector_page = None
+            self._inspector_view = None

@@ -147,6 +147,6 @@ class MirrorFormat(BaseFormat):
             zstd.compress(r.content),
             time,
         ))
-        logger.warn('%s %s %s %s %s %s', term.yellow('FETCH'), url, r.http_version, term.gr(r.status_code, r.status_code == 200), r.headers.get('content-type'), r.headers.get('location'))
+        logger.warn('%s %s %s %s %s %d %s', term.yellow('FETCH'), url, r.http_version, term.gr(r.status_code, r.status_code == 200), r.headers.get('content-type'), r.headers.get('content-length'), r.headers.get('location'))
 
-        return Item(r.content, status=r.status_code, content_type=r.headers.get('content-type', 'application/octet-stream'), location=r.headers.get('location'), updated=time)
+        return Item(path, r.content, status=r.status_code, content_type=r.headers.get('content-type', 'application/octet-stream'), location=r.headers.get('location'), updated=time)

@@ -15,9 +15,6 @@ class StatusBar(qt.QStatusBar):
         self._doc_url = w = qt.QLabel(self)
         self.addWidget(w)
 
-        # self._doc_time = w = qt.QLabel(self)
-        # self.addWidget(w)
-
         self._counter = w = qt.QLabel(self)
         self.addWidget(w)
 
@@ -41,13 +38,11 @@ class StatusBar(qt.QStatusBar):
         self._doc_path.setText(text)
 
     def _set_url(self, url):
-        path = url.path()[1:]
-
-        self._doc_url.setText(path)
-
-        # item = self.parent()._stack.currentWidget()._doc[path]
-        # if item:
-        #     self._doc_time.setText(datetime.fromtimestamp(item.updated).isoformat(' '))
+        path = url.path()[1:]  # remove leading /
+        text = path
+        if item := self.parent()._stack.currentWidget()._doc[path]:
+            text += f' [{datetime.fromtimestamp(item.updated).strftime('%Y-%m-%d')}]'
+        self._doc_url.setText(text)
 
     def _update_counter(self):
         if viewer := self.parent()._stack.currentWidget():

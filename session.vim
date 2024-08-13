@@ -4,7 +4,7 @@ let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-
 let v:this_session=expand("<sfile>:p")
 silent only
 silent tabonly
-cd D:\python\qdocviewer
+cd D:\python\qdocviewer\scripts
 if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
@@ -14,13 +14,12 @@ if &shortmess =~ 'A'
 else
   set shortmess=aoO
 endif
-badd +68 D:\python\qdocviewer\docs.yaml
-badd +25 D:\python\qdocviewer\__main__.py
+badd +35 D:\python\qdocviewer\__main__.py
 badd +36 D:\python\qdocviewer\mainwindow.py
 badd +55 D:\python\qdocviewer\server.py
 badd +1 D:\python\qdocviewer\index.py
-badd +1 D:\python\qdocviewer\viewer.py
-badd +1 D:\python\qdocviewer\utils.py
+badd +160 D:\python\qdocviewer\viewer.py
+badd +73 D:\python\qdocviewer\utils.py
 badd +7 D:\python\qdocviewer\format\zipped.py
 badd +1 D:\python\qdocviewer\format\__init__.py
 badd +1 D:\python\qdocviewer\format\directory.py
@@ -30,9 +29,11 @@ badd +1 D:\python\qdocviewer\__init__.py
 badd +1 D:\python\qdocviewer\format\mirror.py
 badd +1 D:\python\qdocviewer\stack.py
 badd +1 D:\python\qdocviewer\status.py
+badd +1 D:\python\qdocviewer\docs\docs.yaml
+badd +1 D:\python\qdocviewer\scripts\index.py
 argglobal
 %argdel
-$argadd docs.yaml
+$argadd \python\qdocviewer\docs.yaml
 set lines=61 columns=226
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
@@ -50,9 +51,11 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
+tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit D:\python\qdocviewer\docs.yaml
+edit D:\python\qdocviewer\docs\docs.yaml
 argglobal
+balt D:\python\qdocviewer\__main__.py
 setlocal fdm=manual
 setlocal fde=0
 setlocal fmr={{{,}}}
@@ -63,16 +66,15 @@ setlocal fdn=20
 setlocal fen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 113 - ((46 * winheight(0) + 29) / 58)
+let s:l = 58 - ((57 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 113
-normal! 05|
+keepjumps 58
+normal! 03|
 tabnext
 edit D:\python\qdocviewer\__main__.py
 argglobal
-balt D:\python\qdocviewer\docs.yaml
 setlocal fdm=marker
 setlocal fde=PythonFold(v:lnum)
 setlocal fmr={{{,}}}
@@ -117,12 +119,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 64 - ((40 * winheight(0) + 29) / 58)
+let s:l = 172 - ((57 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 64
-normal! 058|
+keepjumps 172
+normal! 013|
 tabnext
 edit D:\python\qdocviewer\status.py
 argglobal
@@ -137,12 +139,12 @@ setlocal fdn=20
 setlocal fen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 60 - ((35 * winheight(0) + 29) / 58)
+let s:l = 43 - ((37 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 60
-normal! 099|
+keepjumps 43
+normal! 068|
 tabnext
 edit D:\python\qdocviewer\stack.py
 argglobal
@@ -155,12 +157,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 9 - ((8 * winheight(0) + 29) / 58)
+let s:l = 21 - ((20 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 9
-normal! 033|
+keepjumps 21
+normal! 019|
 tabnext
 edit D:\python\qdocviewer\index.py
 argglobal
@@ -190,12 +192,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 61 - ((36 * winheight(0) + 29) / 58)
+let s:l = 78 - ((29 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 61
-normal! 0
+keepjumps 78
+normal! 045|
 tabnext
 edit D:\python\qdocviewer\viewer.py
 argglobal
@@ -207,12 +209,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 129 - ((26 * winheight(0) + 29) / 58)
+let s:l = 79 - ((18 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 129
-normal! 048|
+keepjumps 79
+normal! 087|
 tabnext
 edit D:\python\qdocviewer\server.py
 argglobal
@@ -227,12 +229,12 @@ setlocal fdn=20
 setlocal fen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 47 - ((46 * winheight(0) + 29) / 58)
+let s:l = 57 - ((45 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 47
-normal! 037|
+keepjumps 57
+normal! 016|
 tabnext
 edit D:\python\qdocviewer\format\zipped.py
 argglobal
@@ -244,12 +246,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 27 - ((26 * winheight(0) + 29) / 58)
+let s:l = 15 - ((14 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 27
-normal! 029|
+keepjumps 15
+normal! 014|
 tabnext
 edit D:\python\qdocviewer\format\mirror.py
 argglobal
@@ -262,12 +264,13 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 110 - ((32 * winheight(0) + 29) / 58)
+let s:l = 67 - ((38 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 110
-normal! 034|
+keepjumps 67
+normal! 021|
+tabnext
 tabnext
 edit D:\python\qdocviewer\format\base.py
 argglobal
@@ -287,7 +290,6 @@ normal! zt
 keepjumps 22
 normal! 014|
 tabnext
-tabnext
 edit D:\python\qdocviewer\format\directory.py
 argglobal
 balt D:\python\qdocviewer\format\zipped.py
@@ -299,12 +301,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 17 - ((16 * winheight(0) + 29) / 58)
+let s:l = 18 - ((17 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 17
-normal! 029|
+keepjumps 18
+normal! 059|
 tabnext
 edit D:\python\qdocviewer\format\__init__.py
 argglobal
@@ -317,12 +319,12 @@ setlocal fdl=99
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-let s:l = 22 - ((21 * winheight(0) + 29) / 58)
+let s:l = 21 - ((20 * winheight(0) + 29) / 58)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 22
-normal! 031|
+keepjumps 21
+normal! 0
 tabnext
 edit D:\python\qdocviewer\utils.py
 argglobal
@@ -340,7 +342,25 @@ keepjumps exe s:l
 normal! zt
 keepjumps 73
 normal! 0
-tabnext 17
+tabnext
+edit D:\python\qdocviewer\scripts\index.py
+argglobal
+balt D:\python\qdocviewer\utils.py
+setlocal fdm=marker
+setlocal fde=PythonFold(v:lnum)
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=99
+setlocal fml=1
+setlocal fdn=20
+setlocal fen
+let s:l = 110 - ((26 * winheight(0) + 29) / 58)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 110
+normal! 034|
+tabnext 18
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0
   silent exe 'bwipe ' . s:wipebuf
 endif

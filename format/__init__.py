@@ -1,5 +1,4 @@
 import logging
-import os
 from importlib import import_module
 
 from .. import DOCS_DIR
@@ -8,12 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 def get_format(name, params):
-    path = params.get('path', name)
     if 'url' in params:
         return 'mirror'
-    if os.path.splitext(path)[1] == '.zip' or os.path.exists(DOCS_DIR / f'{name}.zip'):
+
+    path = DOCS_DIR / params.get('path', name)
+    if path.suffix == '.zip':
         return 'zipped'
-    return 'directory'
+    if path.isdir():
+        return 'directory'
+    if path.with_suffix('.zip').exists():
+        return 'zipped'
 
 
 def create_instance(name, params, format):

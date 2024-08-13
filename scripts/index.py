@@ -78,6 +78,46 @@ def process_typedoc():
                 ind[symbol] = file[2:].replace(os.sep, '/')
 
 
+def process_vim():
+    with Index() as ind:
+        with open('tags.json') as f:
+            for k, v in json.loads(f.read()).items():
+                ind[k] = v
+
+
+def process_postgres():
+    from selectolax.parser import HTMLParser
+
+    def itertag(parent, tag):
+        return [node for node in parent.iter() if node.tag == tag]
+
+    with Index() as ind:
+        with open('bookindex.html', encoding='utf-8') as f:
+            html = HTMLParser(f.read())
+        for indexdiv in html.css('.indexdiv'):
+            for dl in itertag(indexdiv, 'dl'):
+                for dt in itertag(dl, 'dt'):
+                    term = dt.text(deep=False).rstrip(', ')
+                    if term:
+                        for a in dt.css('a'):
+                            sym = f'{term} ({a.text().strip()})' if a.text().strip() != term else term
+                            print('- ' + sym)
+                            loc = a.attributes['href']
+                            ind[sym] = loc
+                    if dt.next and dt.next.tag == 'dd':
+                        for dl in itertag(dt.next, 'dl'):
+                            for dt in itertag(dl, 'dt'):
+                                subterm = dt.text(deep=False).rstrip(', ')
+                                text = f'{term} - {subterm}'
+                                for a in dt.css('a'):
+                                    if a.text().strip() != subterm:
+                                        text += ' (' + a.text().strip() + ')'
+                                    sym = text
+                                    print('-   ' + sym)
+                                    loc = a.attributes['href']
+                                    ind[sym] = loc
+
+
 def get_doc_type():
     if os.path.exists('qtcore'):
         return 'qt'
@@ -85,6 +125,10 @@ def get_doc_type():
         with open('index.html', encoding='utf-8') as f:
             if 'typedoc' in f.read():
                 return 'typedoc'
+    if os.path.exists('tags.json') and os.path.exists('gui_w32.txt.html'):
+        return 'vim'
+    if os.path.exists('postgres-user.html'):
+        return 'postgres'
 
 
 def main():
