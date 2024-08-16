@@ -5,7 +5,7 @@ import orjson as json
 import polars as pl
 from recordclass import dataobject
 
-from .. import utils
+from .. import DOCS_DIR, utils
 
 GLOBAL_WHITELIST = {
     'cdnjs.cloudflare.com',
@@ -61,6 +61,10 @@ class BaseFormat:
                 return utils.extract_hhk(content)
 
     def get_index(self):
+        file = DOCS_DIR / self.name / 'index.json'
+        if file.exists():
+            return self.process_index(file, file.read_text())
+
         match self.name:
             case 'mdn':
                 df = pl.DataFrame(json.loads(self['en-US/search-index.json'].content)).rename({'title': 'symbol', 'url': 'location'})

@@ -3,7 +3,7 @@ from functools import lru_cache
 from queue import Empty, SimpleQueue
 from threading import Thread
 from time import gmtime, strftime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import orjson as json
@@ -49,12 +49,14 @@ class MirrorFormat(BaseFormat):
     def __init__(self, name, params):
         super().__init__(name, params)
 
-        url = params.get('url')
-        assert url.endswith('/'), f'Invalid prefix: {url}'
-        self.prefix = url
+        url = urlparse(params.get('url'))
+
+        self.prefix = f'{url.scheme}://{url.hostname}'
         self.path = (DOCS_DIR / name).mkdir_p()
         self.dbpath = self.path / 'cache.sqlite'
-        self.start = params.get('start')
+        self.start = url.path
+        if self.start == '':
+            self.start = '/'
         self.index = params.get('index')  # index location on the remote
 
         self.props = {}
@@ -147,6 +149,6 @@ class MirrorFormat(BaseFormat):
             zstd.compress(r.content),
             time,
         ))
-        logger.warn('%s %s %s %s %s %d %s', term.yellow('FETCH'), url, r.http_version, term.gr(r.status_code, r.status_code == 200), r.headers.get('content-type'), r.headers.get('content-length'), r.headers.get('location'))
+        logger.info('%s %s %s %s %s %d %s', term.yellow('FETCH'), url, r.http_version, term.gr(r.status_code, r.status_code == 200), r.headers.get('content-type'), r.headers.get('content-length'), r.headers.get('location'))
 
         return Item(path, r.content, status=r.status_code, content_type=r.headers.get('content-type', 'application/octet-stream'), location=r.headers.get('location'), updated=time)

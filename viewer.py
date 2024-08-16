@@ -1,11 +1,22 @@
 import logging
 from urllib.parse import urljoin
 
-from . import USERSCRIPTS_DIR, Qt, qt, term
+from recordclass import dataobject
+
+from . import DOCS_DIR, Qt, qt, term
 from .index import Widget as IndexWidget
 from .server import HttpServer
 
 logger = logging.getLogger(__name__)
+
+
+class UserScript(dataobject):
+    name: str
+    file: str
+    prefix: str
+    suffix: str
+    time: int = None
+    script: qt.QWebEngineScript = None
 
 
 class Interceptor(qt.QWebEngineUrlRequestInterceptor):
@@ -91,11 +102,18 @@ class ViewerWidget(qt.QWidget):
         self._server = HttpServer(self._doc)
         self._server.start()
         self._prefix = self._server.prefix
+        self._userscripts = (
+            UserScript('userscript', DOCS_DIR / doc.name / f'{doc.name}.js', prefix='(function() {', suffix='})();'),
+            UserScript('userstyle', DOCS_DIR / doc.name / f'{doc.name}.css', prefix='(function() { const css = document.head.appendChild(document.createElement("style")).sheet; css.insertRule(`', suffix='`); })();'),
+        )
+        self._userstyle_file = DOCS_DIR / self._doc.name / f'{self._doc.name}.css'
+        self._userscript_time = None
+        self._userstyle_time = None
 
         self._setup_ui()
 
         url = qt.QUrl(self._prefix)
-        if start := getattr(self._doc, 'start', None):
+        if start := self._doc.start:
             url.setPath('/' + start.lstrip('/'))
         self._webengine.load(url)
 
@@ -116,6 +134,7 @@ class ViewerWidget(qt.QWidget):
 
         self._page = page = WebEnginePage(self)
         page.loadStarted.connect(self._doc.reset_counter)
+        page.navigationRequested.connect(lambda _: self._load_userscript())
         self._webengine = webengine = qt.QWebEngineView(page)
         inspector_splitter.addWidget(webengine)
 
@@ -132,9 +151,7 @@ class ViewerWidget(qt.QWidget):
         else:
             self._index = None
 
-        userscript_file = USERSCRIPTS_DIR / f'{self._doc.name}.js'
-        if userscript_file.exists():
-            self._set_userscript(userscript_file)
+        self._load_userscript()
 
     def _on_index_clicked(self, location):
         if '#' in location:
@@ -146,19 +163,28 @@ class ViewerWidget(qt.QWidget):
             url = qt.QUrl(self._prefix + location.lstrip('/'))
         self._page.setUrl(url)
 
-    def _set_userscript(self, path):
+    def _load_userscript(self):
         scripts = self._page.scripts()
+        for us in self._userscripts:
+            file = us.file
+            if file.exists() and file.size > 0:
+                if us.time is None or us.time < file.mtime:
+                    script = qt.QWebEngineScript()
+                    script.setName(us.name)
+                    script.setInjectionPoint(qt.QWebEngineScript.InjectionPoint.DocumentReady)
+                    script.setSourceCode(us.prefix + file.read_text() + us.suffix)
 
-        scripts.clear()  # cannot edit existing script
-
-        if path.exists() and path.size > 0:
-            script = qt.QWebEngineScript()
-            script.setInjectionPoint(qt.QWebEngineScript.InjectionPoint.DocumentReady)
-            script.setSourceCode('(function() {' + path.read_text() + '})()')
-            scripts.insert(script)
-
-    def _remove_userscript(self):
-        self._page.scripts().clear()
+                    if us.script:
+                        scripts.remove(us.script)
+                    scripts.insert(script)
+                    us.time = file.mtime
+                    us.script = script
+            else:
+                # file is deleted
+                if us.script:
+                    scripts.remove(us.script)
+                    us.time = None
+                    us.script = None
 
     def _toggle_inspector(self):
         if self._inspector_page is None:

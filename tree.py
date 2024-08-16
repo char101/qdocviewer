@@ -45,10 +45,15 @@ class TreeWidget(qt.QTreeWidget):
             % SELECTED_BG
         )
 
-        self._id = 0
+        self._id = 0  # next_id counter
+        self._start_item = None  # item to open on application start
         with (Path(__file__).parent / 'docs' / 'docs.yaml').open() as f:
             self._load(yaml.load(f, Loader=yaml.CLoader), self)
         self.expandAll()
+
+    def _next_id(self):
+        self._id += 1
+        return self._id
 
     def mouseMoveEvent(self, event):
         if self.indexAt(event.pos()).isValid() and self.itemAt(event.pos()).data(0, Qt.UserRole) is not None:
@@ -67,19 +72,18 @@ class TreeWidget(qt.QTreeWidget):
     #     s = super().sizeHint()
     #     return qt.QSize(s.width() + 10, s.height())
 
-    def _load(self, items, parent=None):
+    def _load(self, items, parent):
         for name, params in items.items():
             if params is None:
                 params = {}
 
-            format = get_format(name, params)
-
-            if name[0] == '.' or format is None:
-                item = self._add_group(name, parent)
+            if name[0] == '.':
+                item = self._add_group(name[1:], parent)
                 self._load(params, item)
             else:
-                children = params.pop('children', None)
+                format = get_format(name, params)
                 item = self._add_item(name, params, format, parent)
+                children = params.pop('children', None)
                 if children:
                     self._load(children, item)
 
@@ -98,6 +102,7 @@ class TreeWidget(qt.QTreeWidget):
         if format not in icons_cache:
             icons_cache[format] = qt.QIcon(ICONS_DIR / f'{format}.png')
         item.setIcon(0, icons_cache[format])
-        self._id += 1
-        item.setData(0, Qt.UserRole, (self._id, name, params, format))
+        item.setData(0, Qt.UserRole, (self._next_id(), name, params, format))
+        if name == 'python':
+            self._start_item = item
         return item

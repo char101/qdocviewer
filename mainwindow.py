@@ -26,11 +26,6 @@ class MainWindow(qt.QMainWindow):
             Qt.CTRL | Qt.SHIFT | Qt.Key_I: self._toggle_inspector,
         },)
 
-        userscripts_dir = DOCS_DIR / '_userscripts'
-        self._userscripts = {file.stem: file.mtime for file in userscripts_dir.files()}
-        self._watcher = watcher = qt.QFileSystemWatcher([userscripts_dir])
-        watcher.directoryChanged.connect(self._reload_userscripts)
-
     def _setup_ui(self):
         # status bar
         self._status = status = StatusBar(self)
@@ -68,8 +63,8 @@ class MainWindow(qt.QMainWindow):
         self.setCentralWidget(widget)
 
         # open first document to prevent flashing
-        tree.setCurrentItem(tree.topLevelItem(0))
-        stack._open(tree.topLevelItem(0).data(0, Qt.UserRole))
+        tree.setCurrentItem(tree._start_item)
+        stack._open(tree._start_item.data(0, Qt.UserRole))
 
     def keyPressEvent(self, event):
         # uppercase letter is determined by shift key, the code is the same with the lowercase letter
@@ -114,29 +109,6 @@ class MainWindow(qt.QMainWindow):
     def _update_title(self, title):
         if item := self._tree.currentItem():
             self.setWindowTitle(f'{item.text(0)} | {title}')
-
-    def _reload_userscripts(self, path):
-        userscripts = self._userscripts
-        stack = self._stack
-        widgets = {}
-        for i in range(stack.count()):
-            w = stack.widget(i)
-            widgets[w._doc.name] = w
-
-        names = set()
-        for file in Path(path).files():
-            if file.size > 0:
-                name = file.stem
-                if name not in userscripts or file.mtime > userscripts[name]:
-                    ic('reload userscript', file)
-                    widgets[name]._set_userscript(file)
-                    userscripts[name] = file.mtime
-                names.add(name)
-
-        for name in userscripts.keys():
-            if name not in names:
-                ic('remove userscript', name)
-                widgets[name]._remove_userscript()
 
     def _search(self):
         input = self._status._search

@@ -9,7 +9,7 @@ from .base import BaseFormat, Item
 class ZippedFormat(BaseFormat):
     def __init__(self, name, params):
         super().__init__(name, params)
-        self.path = DOCS_DIR / params['path'] if 'path' in params else DOCS_DIR / f'{name}.zip'
+        self.path = DOCS_DIR / name / params['zip']
         self.prefix = (params['prefix'].strip('/') + '/') if 'prefix' in params else ''
         self.zf = ZipFile(self.path)
         self.start = params.get('start')
