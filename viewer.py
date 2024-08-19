@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class UserScript(dataobject):
     name: str
     file: str
-    prefix: str
-    suffix: str
+    prefix: str = ''
+    suffix: str = ''
     time: int = None
     script: qt.QWebEngineScript = None
 
@@ -103,8 +103,8 @@ class ViewerWidget(qt.QWidget):
         self._server.start()
         self._prefix = self._server.prefix
         self._userscripts = (
-            UserScript('userscript', DOCS_DIR / doc.name / f'{doc.name}.js', prefix='(function() {', suffix='})();'),
-            UserScript('userstyle', DOCS_DIR / doc.name / f'{doc.name}.css', prefix='(function() { const css = document.head.appendChild(document.createElement("style")).sheet; css.insertRule(`', suffix='`); })();'),
+            UserScript('userscript', DOCS_DIR / doc.name / f'{doc.name}.js'),
+            UserScript('userstyle', DOCS_DIR / doc.name / f'{doc.name}.css', prefix='const css = new CSSStyleSheet(); css.replaceSync(`', suffix='`); document.adoptedStyleSheets.push(css);'),
         )
         self._userstyle_file = DOCS_DIR / self._doc.name / f'{self._doc.name}.css'
         self._userscript_time = None
@@ -172,7 +172,7 @@ class ViewerWidget(qt.QWidget):
                     script = qt.QWebEngineScript()
                     script.setName(us.name)
                     script.setInjectionPoint(qt.QWebEngineScript.InjectionPoint.DocumentReady)
-                    script.setSourceCode(us.prefix + file.read_text() + us.suffix)
+                    script.setSourceCode('(function() {' + us.prefix + file.read_text() + us.suffix + '})();')
 
                     if us.script:
                         scripts.remove(us.script)

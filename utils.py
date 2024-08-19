@@ -62,12 +62,16 @@ def extract_searchindex(content, base_url='/'):
     if not content.startswith(b'Search.setIndex'):
         return
 
+    symbols = []
+    locations = []
+
     try:
         data = json.loads(content[16:-1])
     except Exception as err:
         print(content)
         raise err
 
+    # locations
     try:
         docnames = data['docnames']
         add_html = True
@@ -75,17 +79,24 @@ def extract_searchindex(content, base_url='/'):
         docnames = data['docurls']
         add_html = False
 
-    symbols = []
-    locations = []
-
-    for k, v in data['indexentries'].items():
-        if len(v) == 1:
-            url = docnames[v[0][0]]
-            if add_html:
-                url += '.html'
-            if hash := v[0][1]:
-                url += f'#{hash}'
-            symbols.append(k)
+    # symbols
+    indexentries = data['indexentries']
+    titles = data['titles']
+    if len(indexentries) > len(titles):
+        for k, v in indexentries.items():
+            if len(v) > 0:
+                v = v[0]
+                url = docnames[v[0]]
+                if add_html:
+                    url += '.html'
+                if hash := v[1]:
+                    url += f'#{hash}'
+                symbols.append(k)
+                locations.append(urljoin(base_url, url))
+    else:
+        for i, symbol in enumerate(titles):
+            url = docnames[i]
+            symbols.append(symbol)
             locations.append(urljoin(base_url, url))
 
     if not symbols:

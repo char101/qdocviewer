@@ -1,6 +1,8 @@
 import os
 from functools import cached_property
+from urllib.parse import urlparse
 
+import httpx
 import orjson as json
 import polars as pl
 from recordclass import dataobject
@@ -25,6 +27,18 @@ class Item(dataobject):
     content_type: str = None
     location: str = None
     updated: int = None
+
+
+def get_cache_path(url):
+    p = urlparse(url)
+    yield p.hostname
+    path = p.path.lstrip('/')
+    if path == '':
+        yield 'index.html'
+    else:
+        yield from path.rstrip('/').split('/')
+        if path.endswith('/'):
+            yield 'index.html'
 
 
 class BaseFormat:
@@ -91,3 +105,20 @@ class BaseFormat:
 
     def stop(self):
         pass
+
+    def get_external_resource(self, url):
+        cache_path = self.path / os.sep.join(get_cache_path(url))
+        info_path = cache_path.parent / f'{cache_path.name}.json'
+        if cache_path.exists():
+            self.counter['cache'] += 1
+            info = json.loads(info_path.read_text())
+            return Item(url, content=cache_path.read_bytes(), status=info['status'], content_type=info['content-type'])
+
+        self.counter['fetch'] += 1
+        r = httpx.get(url, follow_redirects=True)
+        # cache regardless of status
+        cache_path.parent.makedirs_p()
+        cache_path.write_bytes(r.content)
+        info_path.write_bytes(json.dumps({'status': r.status_code, 'content-type': r.headers.get('content-type')}))
+
+        return Item(url, content=r.content, status=r.status_code, content_type=r.headers.get('content-type'))

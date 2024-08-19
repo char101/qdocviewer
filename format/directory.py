@@ -13,6 +13,9 @@ class DirectoryFormat(BaseFormat):
         self.start = params.get('start')
 
     def __getitem__(self, name):
+        if name.startswith('https://') or name.startswith('http://'):
+            return self.get_external_resource(name)
+
         for name in self.generate_names(name):
             try:
                 path = self.path / name
